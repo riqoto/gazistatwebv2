@@ -335,27 +335,29 @@ const ComponentRendererPDF = ({ component }: { component: ComponentSchema }) => 
 export const PDFDocument = ({ layout }: { layout: LayoutJSON }) => {
     return (
         <Document>
-
-            <Page
-                size="A4"
-                style={{
-                    ...styles.page,
-                    paddingTop: layout.pageSettings.margins.top,
-                    paddingBottom: layout.pageSettings.margins.bottom,
-                    paddingLeft: layout.pageSettings.margins.left,
-                    paddingRight: layout.pageSettings.margins.right,
-                    flexDirection: 'column',
-                }}
-            >
-                {layout.components.map((component) => (
-                    <ComponentRendererPDF key={component.id} component={component} />
-                ))}
-                {layout.components.length === 0 && (
-                    <Text style={{ color: '#9ca3af', textAlign: 'center', marginTop: 200 }}>
-                        Empty Report
-                    </Text>
-                )}
-            </Page>
+            {layout.pages?.map((page, index) => (
+                <Page
+                    key={page.id || index}
+                    size="A4"
+                    style={{
+                        ...styles.page,
+                        paddingTop: layout.pageSettings.margins.top,
+                        paddingBottom: layout.pageSettings.margins.bottom,
+                        paddingLeft: layout.pageSettings.margins.left,
+                        paddingRight: layout.pageSettings.margins.right,
+                        flexDirection: 'column',
+                    }}
+                >
+                    {page.components.map((component) => (
+                        <ComponentRendererPDF key={component.id} component={component} />
+                    ))}
+                    {page.components.length === 0 && (
+                        <Text style={{ color: '#9ca3af', textAlign: 'center', marginTop: 200 }}>
+                            {page.name || `Page ${index + 1}`} (Boş)
+                        </Text>
+                    )}
+                </Page>
+            ))}
         </Document>
     );
 };

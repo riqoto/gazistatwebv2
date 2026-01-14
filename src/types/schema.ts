@@ -155,8 +155,21 @@ export interface PageSettings {
     margins: { top: number; bottom: number; left: number; right: number };
 }
 
+export interface PageStyles {
+    backgroundColor?: string;
+    backgroundImage?: string;
+    padding?: number;
+}
+
+export interface Page {
+    id: string;
+    name: string;
+    styles?: PageStyles;
+    components: ComponentSchema[];
+}
+
 export interface LayoutJSON {
     title: string;
     pageSettings: PageSettings;
-    components: ComponentSchema[];
+    pages: Page[];
 }

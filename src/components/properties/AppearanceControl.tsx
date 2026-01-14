@@ -1,6 +1,7 @@
 import { Box, Flex, Text, TextField, Grid } from '@radix-ui/themes';
 import { ComponentStyles } from '@/types/schema';
 import { ColorInput } from '@/components/ui/ColorInput';
+import { useCallback, useRef, useEffect } from 'react';
 
 interface AppearanceControlProps {
     styles: ComponentStyles;
@@ -8,17 +9,23 @@ interface AppearanceControlProps {
 }
 
 export function AppearanceControl({ styles, onChange }: AppearanceControlProps) {
-    const handleChange = (key: keyof ComponentStyles, value: any) => {
-        onChange({ ...styles, [key]: value });
-    };
+    const stylesRef = useRef(styles);
+
+    useEffect(() => {
+        stylesRef.current = styles;
+    }, [styles]);
+
+    const handleChange = useCallback((key: keyof ComponentStyles, value: any) => {
+        onChange({ ...stylesRef.current, [key]: value });
+    }, [onChange]);
 
     return (
         <Box>
-            <Text size="1" weight="bold" mb="2" color="gray" className="uppercase">Appearance</Text>
+            <Text size="1" weight="bold" mb="2" color="gray" className="uppercase">Görünüm</Text>
 
             <Flex direction="column" gap="2">
                 <Box>
-                    <Text size="1" mb="1" as="div">Background</Text>
+                    <Text size="1" mb="1" as="div">Arkaplan</Text>
                     <Flex gap="2">
                         <TextField.Root
                             size="1"
@@ -36,7 +43,7 @@ export function AppearanceControl({ styles, onChange }: AppearanceControlProps) 
 
                 <Grid columns="2" gap="2">
                     <Box>
-                        <Text size="1" mb="1" as="div">Border Width</Text>
+                        <Text size="1" mb="1" as="div">Kenarlık Genişliği</Text>
                         <TextField.Root
                             size="1"
                             type="number"
@@ -45,7 +52,7 @@ export function AppearanceControl({ styles, onChange }: AppearanceControlProps) 
                         />
                     </Box>
                     <Box>
-                        <Text size="1" mb="1" as="div">Radius</Text>
+                        <Text size="1" mb="1" as="div">Kenar Yumuşaklığı</Text>
                         <TextField.Root
                             size="1"
                             type="number"
@@ -55,7 +62,7 @@ export function AppearanceControl({ styles, onChange }: AppearanceControlProps) 
                     </Box>
                 </Grid>
                 <Box>
-                    <Text size="1" mb="1" as="div">Border Color</Text>
+                    <Text size="1" mb="1" as="div">Kenarlık Rengi</Text>
                     <Flex gap="2">
                         <TextField.Root
                             size="1"

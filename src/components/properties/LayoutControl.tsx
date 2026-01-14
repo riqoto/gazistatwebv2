@@ -1,5 +1,6 @@
 import { Box, Flex, Text, TextField, Grid } from '@radix-ui/themes';
 import { ComponentStyles } from '@/types/schema';
+import { useCallback, useRef, useEffect } from 'react';
 
 interface LayoutControlProps {
     styles: ComponentStyles;
@@ -7,17 +8,23 @@ interface LayoutControlProps {
 }
 
 export function LayoutControl({ styles, onChange }: LayoutControlProps) {
-    const handleChange = (key: keyof ComponentStyles, value: any) => {
-        onChange({ ...styles, [key]: value });
-    };
+    const stylesRef = useRef(styles);
+
+    useEffect(() => {
+        stylesRef.current = styles;
+    }, [styles]);
+
+    const handleChange = useCallback((key: keyof ComponentStyles, value: any) => {
+        onChange({ ...stylesRef.current, [key]: value });
+    }, [onChange]);
 
     return (
         <Box>
-            <Text size="1" weight="bold" mb="2" color="gray" className="uppercase">Layout</Text>
+            <Text size="1" weight="bold" mb="2" color="gray" className="uppercase">Düzen</Text>
 
             <Grid columns="2" gap="2">
                 <Box>
-                    <Text size="1" mb="1" as="div">Width</Text>
+                    <Text size="1" mb="1" as="div">Genişlik</Text>
                     <TextField.Root
                         size="1"
                         value={styles.width || ''}
@@ -26,7 +33,7 @@ export function LayoutControl({ styles, onChange }: LayoutControlProps) {
                     />
                 </Box>
                 <Box>
-                    <Text size="1" mb="1" as="div">Height</Text>
+                    <Text size="1" mb="1" as="div">Yükseklik</Text>
                     <TextField.Root
                         size="1"
                         value={styles.height || ''}

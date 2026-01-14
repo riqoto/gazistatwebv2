@@ -6,14 +6,15 @@ import { CSS } from '@dnd-kit/utilities';
 import { Box, Heading, Text, Card, Flex, Callout } from '@radix-ui/themes';
 import { useBuilderStore } from '@/store/useBuilderStore';
 import { DataViewRenderer } from './DataViewRenderer';
-import { Info, CheckCircle, TriangleAlert, AlertOctagon } from 'lucide-react';
+import { Info, CheckCircle, TriangleAlert, AlertOctagon, Image } from 'lucide-react';
 
 interface ComponentRendererProps {
     component: ComponentSchema;
     isSelected?: boolean;
+    readOnly?: boolean;
 }
 
-export function ComponentRenderer({ component, isSelected }: ComponentRendererProps) {
+export function ComponentRenderer({ component, isSelected, readOnly = false }: ComponentRendererProps) {
     const {
         attributes,
         listeners,
@@ -21,20 +22,24 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
         transform,
         transition,
         isDragging
-    } = useSortable({ id: component.id });
+    } = useSortable({
+        id: component.id,
+        disabled: readOnly // Disable dnd-kit if readOnly
+    });
 
     const selectComponent = useBuilderStore((state) => state.selectComponent);
 
     const styles = component.styles || {};
 
     const style: React.CSSProperties = {
-        // Transform from dnd-kit
-        transform: CSS.Transform.toString(transform),
-        transition,
+        // Transform from dnd-kit (only if not readOnly)
+        transform: !readOnly ? CSS.Transform.toString(transform) : undefined,
+        transition: !readOnly ? transition : undefined,
 
         // Interactions
         opacity: isDragging ? 0.5 : 1,
-        outline: isSelected ? '2px solid var(--color-primary-500)' : '2px solid transparent',
+        // Only show selection outline in edit mode
+        outline: !readOnly && isSelected ? '2px solid #627d98' : '2px solid transparent',
         outlineOffset: '-2px',
 
         // Spacing
@@ -65,6 +70,7 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
     };
 
     const handleClick = (e: React.MouseEvent) => {
+        if (readOnly) return; // Allow normal interaction
         e.stopPropagation();
         selectComponent(component.id);
     };
@@ -104,7 +110,7 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
                         <Flex
                             justify="center"
                             align="center"
-                            className="bg-gray-100 border-2 border-dashed border-gray-300 rounded text-gray-400"
+                            className="bg-gray-50 border-2 border-dashed border-gray-300 rounded text-gray-400"
                             style={{
                                 width: (component as any).width || '100%',
                                 height: (component as any).height || '200px',
@@ -112,8 +118,7 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
                             }}
                         >
                             <Flex direction="column" align="center" gap="2">
-                                <Box>📷</Box>
-                                <Text size="2">Image Placeholder</Text>
+                                <Box><Image /></Box>
                             </Flex>
                         </Flex>
                     );
@@ -129,8 +134,9 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
                                 height: (component as any).height,
                                 maxWidth: '100%',
                                 objectFit: 'cover',
-                                userSelect: 'none',
-                                pointerEvents: 'none'
+                                // Only disable interaction if meant to be strict, but usually safe to leave
+                                userSelect: readOnly ? 'text' : 'none',
+                                pointerEvents: readOnly ? 'auto' : 'none'
                             }}
                         />
                     </Box>
@@ -152,7 +158,7 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
 
             case 'data-view':
                 return (
-                    <Box className="w-full overflow-hidden border border-gray-200 rounded p-4 bg-white">
+                    <Box className="w-full overflow-hidden rounded p-2 bg-white">
                         <DataViewRenderer component={component as DataViewComponent} />
                     </Box>
                 );
@@ -169,20 +175,15 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
                         gap={`${gap}px`}
                         align={alignItems === 'flex-start' ? 'start' : alignItems === 'flex-end' ? 'end' : alignItems}
                         justify={justifyContent === 'flex-start' ? 'start' : justifyContent === 'flex-end' ? 'end' : justifyContent === 'space-between' ? 'between' : justifyContent}
-                        className="min-h-[50px] border border-dashed border-gray-200"
+                        className={`min-h-[50px] ${!readOnly ? 'border border-dashed border-gazi-navy-200' : ''}`}
                         style={{ width: '100%' }}
                     >
                         {children.length === 0 ? (
-                            <Text size="1" color="gray" className="p-2">Empty Container</Text>
+                            !readOnly && <Text size="1" className="p-2 text-gazi-navy-400">Boş Kapsayıcı</Text>
                         ) : (
                             children.map((child: ComponentSchema) => (
-                                <Box key={child.id} className="relative group">
-                                    {/* 
-                                        Note: We are not wrapping children in SortableContext here yet 
-                                        because nested SortableContext requires a distinct IDs and collision detection setup.
-                                        For now, we just render them recursively. 
-                                     */}
-                                    <ComponentRenderer component={child} />
+                                <Box key={child.id} className="relative group" style={{ width: '100%' }}>
+                                    <ComponentRenderer component={child} readOnly={readOnly} />
                                 </Box>
                             ))
                         )}
@@ -200,15 +201,15 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
                         gap={`${rowGap}px`}
                         align={rowAlign === 'flex-start' ? 'start' : rowAlign === 'flex-end' ? 'end' : rowAlign}
                         justify={rowJustify === 'flex-start' ? 'start' : rowJustify === 'flex-end' ? 'end' : rowJustify === 'space-between' ? 'between' : rowJustify}
-                        className="min-h-[50px] border border-dashed border-gray-200"
+                        className={`min-h-[50px] ${!readOnly ? 'border border-dashed border-gazi-navy-200' : ''}`}
                         style={{ width: '100%' }}
                     >
                         {rowChildren.length === 0 ? (
-                            <Text size="1" color="gray" className="p-2">Empty Row</Text>
+                            !readOnly && <Text size="1" className="p-2 text-gazi-navy-400">Boş Satır</Text>
                         ) : (
                             rowChildren.map((child: ComponentSchema) => (
-                                <Box key={child.id} className="relative group">
-                                    <ComponentRenderer component={child} />
+                                <Box key={child.id} className="relative group" style={{ flex: 1 }}>
+                                    <ComponentRenderer component={child} readOnly={readOnly} />
                                 </Box>
                             ))
                         )}
@@ -224,15 +225,15 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
                         direction="column"
                         gap={`${colGap}px`}
                         align={colAlign === 'flex-start' ? 'start' : colAlign === 'flex-end' ? 'end' : colAlign}
-                        className="min-h-[50px] border border-dashed border-gray-200"
+                        className={`min-h-[50px] ${!readOnly ? 'border border-dashed border-gray-200' : ''}`}
                         style={{ width: '100%' }}
                     >
                         {colChildren.length === 0 ? (
-                            <Text size="1" color="gray" className="p-2">Empty Column</Text>
+                            !readOnly && <Text size="1" className="p-2 text-gazi-navy-400">Boş Sütun</Text>
                         ) : (
                             colChildren.map((child: ComponentSchema) => (
-                                <Box key={child.id} className="relative group">
-                                    <ComponentRenderer component={child} />
+                                <Box key={child.id} className="relative group" style={{ width: '100%' }}>
+                                    <ComponentRenderer component={child} readOnly={readOnly} />
                                 </Box>
                             ))
                         )}
@@ -265,22 +266,23 @@ export function ComponentRenderer({ component, isSelected }: ComponentRendererPr
                     </Callout.Root>
                 );
             default:
-                return <Text>Unknown Component</Text>;
+                return <Text>Bilinmeyen Bileşen</Text>;
         }
     }
 
     return (
         <Box
-            ref={setNodeRef}
+            ref={!readOnly ? setNodeRef : undefined}
             style={style}
-            {...attributes}
-            {...listeners}
+            {...(!readOnly ? attributes : {})}
+            {...(!readOnly ? listeners : {})}
             onClick={handleClick}
             onPointerDown={(e) => {
+                if (readOnly) return;
                 e.stopPropagation();
                 listeners?.onPointerDown?.(e);
             }}
-            className="relative mb-2 select-none hover:border-gray-300 transition-colors rounded p-1"
+            className={`relative mb-2 ${!readOnly ? 'select-none hover:border-gazi-navy-300 cursor-move' : ''} transition-colors rounded p-1`}
             data-component-id={component.id}
         >
             {renderContent()}

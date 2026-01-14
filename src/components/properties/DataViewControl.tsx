@@ -15,11 +15,20 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
     const [jsonError, setJsonError] = useState<string | null>(null);
     const [localJson, setLocalJson] = useState(JSON.stringify(component.data, null, 2));
 
+    const [isTooLarge, setIsTooLarge] = useState(false);
+
     const keys = getKeysFromData(component.data);
 
     // Sync local JSON when component.data changes externally (e.g. undo/redo)
     useEffect(() => {
-        setLocalJson(JSON.stringify(component.data, null, 2));
+        const json = JSON.stringify(component.data, null, 2);
+        if (json.length > 50000) { // Limit to ~50KB for editing
+            setIsTooLarge(true);
+            setLocalJson('');
+        } else {
+            setIsTooLarge(false);
+            setLocalJson(json);
+        }
     }, [component.data]);
 
     const handleJsonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -28,13 +37,16 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
         try {
             const parsed = JSON.parse(val);
             if (Array.isArray(parsed)) {
-                onUpdate({ data: parsed });
+                onUpdate({
+                    data: parsed,
+                    config: { ...component.config, columns: undefined }
+                });
                 setJsonError(null);
             } else {
-                setJsonError('Data must be an array of objects');
+                setJsonError('Veri, nesnelerin bir dizisi olmalıdır');
             }
         } catch (err) {
-            setJsonError('Invalid JSON format');
+            setJsonError('Geçersiz JSON formatı');
         }
     };
 
@@ -50,14 +62,24 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
                 try {
                     const parsed = JSON.parse(content);
                     if (Array.isArray(parsed)) {
-                        setLocalJson(JSON.stringify(parsed, null, 2));
-                        onUpdate({ data: parsed });
+                        const json = JSON.stringify(parsed, null, 2);
+                        if (json.length > 50000) {
+                            setIsTooLarge(true);
+                            setLocalJson('');
+                        } else {
+                            setIsTooLarge(false);
+                            setLocalJson(json);
+                        }
+                        onUpdate({
+                            data: parsed,
+                            config: { ...component.config, columns: undefined }
+                        });
                         setJsonError(null);
                     } else {
-                        setJsonError('JSON must be an array of objects');
+                        setJsonError('JSON, nesnelerin bir dizisi olmalıdır');
                     }
                 } catch (err) {
-                    setJsonError('Invalid JSON file');
+                    setJsonError('Geçersiz JSON dosyası');
                 }
             } else if (file.name.endsWith('.csv')) {
                 // Simple CSV parser for demo purposes
@@ -72,8 +94,18 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
                     });
                     return obj;
                 });
-                setLocalJson(JSON.stringify(data, null, 2));
-                onUpdate({ data });
+                const json = JSON.stringify(data, null, 2);
+                if (json.length > 50000) {
+                    setIsTooLarge(true);
+                    setLocalJson('');
+                } else {
+                    setIsTooLarge(false);
+                    setLocalJson(json);
+                }
+                onUpdate({
+                    data,
+                    config: { ...component.config, columns: undefined }
+                });
                 setJsonError(null);
             }
         };
@@ -81,7 +113,7 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
     };
 
     const handleAddFormula = () => {
-        const newFormula = { type: 'average', key: keys[0] || '', label: 'Average' } as const;
+        const newFormula = { type: 'average', key: keys[0] || '', label: 'Ortalama' } as const;
         onUpdate({
             formulas: [...(component.formulas || []), newFormula]
         });
@@ -101,25 +133,33 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
 
     return (
         <Box>
-            <Text size="2" weight="bold" mb="2">Data Source (JSON)</Text>
-            <TextArea
-                value={localJson}
-                onChange={handleJsonChange}
-                className="font-mono text-xs"
-                rows={6}
-                color={jsonError ? 'red' : undefined}
-            />
-            {jsonError && <Text size="1" color="red">{jsonError}</Text>}
+            <Text size="2" weight="bold" mb="2">Veri Kaynağı (JSON)</Text>
+            {isTooLarge ? (
+                <Box className="p-4 bg-yellow-50 text-yellow-800 rounded border border-yellow-200">
+                    <Text size="2">Veri doğrudan düzenlenemeyecek kadar büyük ({component.data?.length} satır). Değiştirmek için yeni bir dosya yükleyin.</Text>
+                </Box>
+            ) : (
+                <>
+                    <TextArea
+                        value={localJson}
+                        onChange={handleJsonChange}
+                        className="font-mono text-xs"
+                        rows={6}
+                        color={jsonError ? 'red' : undefined}
+                    />
+                    {jsonError && <Text size="1" color="red">{jsonError}</Text>}
+                </>
+            )}
 
             <Box mt="2">
-                <Text size="1" weight="bold">Upload File (JSON/CSV)</Text>
+                <Text size="1" weight="bold">Dosya Yükle (JSON/CSV)</Text>
                 <input
                     type="file"
                     accept=".json,.csv"
                     onChange={handleFileUpload}
                     className="block w-full text-xs text-gray-500
                         file:mr-2 file:py-1 file:px-2
-                        file:rounded-full file:border-0
+                        file:rounded-sm file:border-0
                         file:text-xs file:font-semibold
                         file:bg-blue-50 file:text-blue-700
                         hover:file:bg-blue-100"
@@ -127,7 +167,7 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
             </Box>
 
             <Box mt="4">
-                <Text size="2" weight="bold" mb="2">View Type</Text>
+                <Text size="2" weight="bold" mb="2">Görünüm Tipi</Text>
                 <Grid columns="4" gap="2">
                     <Button variant={component.viewType === 'table' ? 'solid' : 'soft'} onClick={() => onUpdate({ viewType: 'table' })}>
                         <TableIcon size={16} />
@@ -146,11 +186,11 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
 
             {component.viewType !== 'table' && (
                 <Box mt="4">
-                    <Text size="2" weight="bold" mb="2">Chart Configuration</Text>
+                    <Text size="2" weight="bold" mb="2">Grafik Yapılandırması</Text>
 
                     <Box mb="2" className="flex gap-5 p-1 border border-gray-200 rounded bg-gray-50">
                         <Flex justify="between" align="center" >
-                            <Text size="1" color="gray">X Axis (Category)</Text>
+                            <Text size="1" color="gray">X Ekseni (Kategori)</Text>
                             <Select.Root
                                 value={component.config.xAxisKey || ''}
                                 onValueChange={(val) => onUpdate({ config: { ...component.config, xAxisKey: val } })}
@@ -166,7 +206,7 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
                     <Box mb="2" className="flex gap-5 p-1 border border-gray-200 rounded bg-gray-50">
                         <Flex justify="between" align="center" >
 
-                            <Text size="1" color="gray">Y Axis (Value)</Text>
+                            <Text size="1" color="gray">Y Ekseni (Değer)</Text>
                             <Select.Root
                                 value={component.config.yAxisKeys?.[0] || ''}
                                 onValueChange={(val) => onUpdate({ config: { ...component.config, yAxisKeys: [val] } })}
@@ -184,9 +224,9 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
 
             <Box mt="4">
                 <Flex justify="between" align="center" mb="2">
-                    <Text size="2" weight="bold">Formulas</Text>
+                    <Text size="2" weight="bold">Formüller</Text>
                     <Button size="1" variant="ghost" onClick={handleAddFormula}>
-                        <Plus size={14} /> Add
+                        <Plus size={14} /> Ekle
                     </Button>
                 </Flex>
 
@@ -197,10 +237,10 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
                                 <Select.Root value={f.type} onValueChange={(v) => updateFormula(i, 'type', v)}>
                                     <Select.Trigger style={{ flex: 1 }} />
                                     <Select.Content>
-                                        <Select.Item value="sum">Sum</Select.Item>
-                                        <Select.Item value="average">Avg</Select.Item>
+                                        <Select.Item value="sum">Toplam</Select.Item>
+                                        <Select.Item value="average">Ort</Select.Item>
                                         <Select.Item value="min">Min</Select.Item>
-                                        <Select.Item value="max">Max</Select.Item>
+                                        <Select.Item value="max">Maks</Select.Item>
                                         <Select.Item value="variance">Var</Select.Item>
                                     </Select.Content>
                                 </Select.Root>
@@ -216,7 +256,7 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
                                     size="1"
                                     value={f.label}
                                     onChange={(e) => updateFormula(i, 'label', e.target.value)}
-                                    placeholder="Label"
+                                    placeholder="Etiket"
                                 />
                                 <Button color="red" variant="ghost" size="1" onClick={() => removeFormula(i)}>
                                     <Trash2 size={12} />

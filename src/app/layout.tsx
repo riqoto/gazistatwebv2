@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Roboto } from "next/font/google";
 import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import "./globals.css";
 
-const inter = Inter({
+const roboto = Roboto({
   variable: "--font-inter",
   subsets: ["latin"],
 });
@@ -14,6 +14,8 @@ export const metadata: Metadata = {
   description: "Low-code dashboard builder for Gazistat",
 };
 
+import { AuthProvider } from "@/contexts/AuthContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,10 +23,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} antialiased`}>
-        <Theme accentColor="indigo" grayColor="slate" radius="medium">
-          {children}
-        </Theme>
+      <body className={`${roboto.variable} antialiased`}>
+        <AuthProvider>
+          <Theme accentColor="blue" radius="small" scaling="95%">
+            {children}
+          </Theme>
+        </AuthProvider>
       </body>
     </html>
   );

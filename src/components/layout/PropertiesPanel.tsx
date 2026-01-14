@@ -2,6 +2,7 @@
 
 import { Box, Heading, Flex, Button, TextField, Separator, Text, ScrollArea, Select } from '@radix-ui/themes';
 import { useBuilderStore } from '@/store/useBuilderStore';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { Trash2 } from 'lucide-react';
 import { ComponentStyles, ComponentSchema } from '@/types/schema';
 import { SpacingControl } from '@/components/properties/SpacingControl';
@@ -9,6 +10,8 @@ import { TypographyControl } from '@/components/properties/TypographyControl';
 import { AppearanceControl } from '@/components/properties/AppearanceControl';
 import { LayoutControl } from '@/components/properties/LayoutControl';
 import { DataViewControl } from '@/components/properties/DataViewControl';
+import { ImageUpload } from '@/components/properties/ImageUpload';
+import { useCallback } from 'react';
 
 export function PropertiesPanel() {
     const selectedComponentIds = useBuilderStore((state) => state.selectedComponentIds);
@@ -18,6 +21,7 @@ export function PropertiesPanel() {
 
     // Recursive search for selected component
     const findComponent = (components: ComponentSchema[], id: string): ComponentSchema | undefined => {
+        if (!components) return undefined;
         for (const component of components) {
             if (component.id === id) return component;
             if ('children' in component && Array.isArray(component.children)) {
@@ -28,10 +32,33 @@ export function PropertiesPanel() {
         return undefined;
     };
 
+    // Helper to search across all pages
+    const findComponentGlobal = (id: string): ComponentSchema | undefined => {
+        if (!layout.pages) return undefined;
+        for (const page of layout.pages) {
+            const found = findComponent(page.components, id);
+            if (found) return found;
+        }
+        return undefined;
+    };
+
+    // Get selected component before any early returns
+    const selectedComponentId = selectedComponentIds[0];
+    const selectedComponent = selectedComponentId
+        ? findComponentGlobal(selectedComponentId)
+        : undefined;
+
+    // Define all hooks before any conditional returns
+    const handleStyleChange = useCallback((newStyles: ComponentStyles) => {
+        if (selectedComponent) {
+            updateComponent(selectedComponent.id, { styles: newStyles });
+        }
+    }, [selectedComponent, updateComponent]);
+
     if (selectedComponentIds.length === 0) {
         return (
             <Box className="border-l border-gray-200 bg-white h-full p-4">
-                <Text color="gray" size="2">Select a component to edit its properties.</Text>
+                <Text color="gray" size="2">Özelliklerini düzenlemek için bir bileşen seçin.</Text>
             </Box>
         );
     }
@@ -39,22 +66,36 @@ export function PropertiesPanel() {
     if (selectedComponentIds.length > 1) {
         return (
             <Box className="border-l border-gray-200 bg-white h-full p-4">
-                <Flex direction="column" gap="2">
-                    <Heading size="3">Multiple Selection</Heading>
-                    <Text color="gray" size="2">{selectedComponentIds.length} items selected</Text>
-                    <Text color="gray" size="1">Bulk editing is not supported yet.</Text>
+                <Flex direction="column" gap="4">
+                    <Box>
+                        <Heading size="3">Çoklu Seçim</Heading>
+                        <Text color="gray" size="2">{selectedComponentIds.length} öğe seçildi</Text>
+                    </Box>
+                    <Text color="gray" size="1">Toplu düzenleme henüz desteklenmiyor.</Text>
+
+                    <SimpleTooltip content="Seçilen tüm bileşenleri sil">
+                        <Button
+                            color="red"
+                            variant="soft"
+                            className="w-full"
+                            onClick={() => {
+                                useBuilderStore.getState().removeComponents(selectedComponentIds);
+                                selectComponent(null);
+                            }}
+                        >
+                            <Trash2 size={16} />
+                            Seçilenleri Sil ({selectedComponentIds.length})
+                        </Button>
+                    </SimpleTooltip>
                 </Flex>
             </Box>
         );
     }
 
-    const selectedComponentId = selectedComponentIds[0];
-    const selectedComponent = findComponent(layout.components, selectedComponentId);
-
     if (!selectedComponent) {
         return (
             <Box className="border-l border-gray-200 bg-white h-full p-4">
-                <Text color="gray" size="2">Component not found.</Text>
+                <Text color="gray" size="2">Bileşen bulunamadı.</Text>
             </Box>
         );
     }
@@ -64,17 +105,13 @@ export function PropertiesPanel() {
         selectComponent(null);
     };
 
-    const handleStyleChange = (newStyles: ComponentStyles) => {
-        updateComponent(selectedComponent.id, { styles: newStyles });
-    };
-
     const renderSpecificFields = () => {
         switch (selectedComponent.type) {
             case 'heading':
             case 'text':
                 return (
                     <Box mb="4">
-                        <Text as="div" size="2" mb="1" weight="bold">Content</Text>
+                        <Text as="div" size="2" mb="1" weight="bold">İçerik</Text>
                         <TextField.Root
                             value={(selectedComponent as any).content}
                             onChange={(e) => updateComponent(selectedComponent.id, { content: e.target.value } as any)}
@@ -85,14 +122,14 @@ export function PropertiesPanel() {
                 return (
                     <Box mb="4">
                         <Box mb="2">
-                            <Text as="div" size="2" mb="1" weight="bold">Label</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">Etiket</Text>
                             <TextField.Root
                                 value={(selectedComponent as any).label}
                                 onChange={(e) => updateComponent(selectedComponent.id, { label: e.target.value } as any)}
                             />
                         </Box>
                         <Box>
-                            <Text as="div" size="2" mb="1" weight="bold">Value</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">Değer</Text>
                             <TextField.Root
                                 value={(selectedComponent as any).value}
                                 onChange={(e) => updateComponent(selectedComponent.id, { value: e.target.value } as any)}
@@ -103,17 +140,16 @@ export function PropertiesPanel() {
             case 'image':
                 return (
                     <Box mb="4">
-                        <Text as="div" size="2" mb="1" weight="bold">Image URL</Text>
-                        <TextField.Root
+                        <ImageUpload
                             value={(selectedComponent as any).src}
-                            onChange={(e) => updateComponent(selectedComponent.id, { src: e.target.value } as any)}
+                            onChange={(url) => updateComponent(selectedComponent.id, { src: url } as any)}
                         />
                     </Box>
                 );
             case 'divider':
                 return (
                     <Box mb="4">
-                        <Text as="div" size="2" mb="1" weight="bold">Thickness</Text>
+                        <Text as="div" size="2" mb="1" weight="bold">Kalınlık</Text>
                         <TextField.Root
                             type="number"
                             value={(selectedComponent as any).thickness}
@@ -124,7 +160,7 @@ export function PropertiesPanel() {
             case 'spacer':
                 return (
                     <Box mb="4">
-                        <Text as="div" size="2" mb="1" weight="bold">Height</Text>
+                        <Text as="div" size="2" mb="1" weight="bold">Yükseklik</Text>
                         <TextField.Root
                             type="number"
                             value={(selectedComponent as any).height}
@@ -143,29 +179,29 @@ export function PropertiesPanel() {
                 return (
                     <Box mb="4">
                         <Box mb="2">
-                            <Text as="div" size="2" mb="1" weight="bold">Variant</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">Varyant</Text>
                             <Select.Root
                                 value={(selectedComponent as any).variant}
                                 onValueChange={(val) => updateComponent(selectedComponent.id, { variant: val } as any)}
                             >
                                 <Select.Trigger />
                                 <Select.Content>
-                                    <Select.Item value="info">Info</Select.Item>
-                                    <Select.Item value="success">Success</Select.Item>
-                                    <Select.Item value="warning">Warning</Select.Item>
-                                    <Select.Item value="error">Error</Select.Item>
+                                    <Select.Item value="info">Bilgi</Select.Item>
+                                    <Select.Item value="success">Başarılı</Select.Item>
+                                    <Select.Item value="warning">Uyarı</Select.Item>
+                                    <Select.Item value="error">Hata</Select.Item>
                                 </Select.Content>
                             </Select.Root>
                         </Box>
                         <Box mb="2">
-                            <Text as="div" size="2" mb="1" weight="bold">Title</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">Başlık</Text>
                             <TextField.Root
                                 value={(selectedComponent as any).title || ''}
                                 onChange={(e) => updateComponent(selectedComponent.id, { title: e.target.value } as any)}
                             />
                         </Box>
                         <Box>
-                            <Text as="div" size="2" mb="1" weight="bold">Content</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">İçerik</Text>
                             <TextField.Root
                                 value={(selectedComponent as any).content}
                                 onChange={(e) => updateComponent(selectedComponent.id, { content: e.target.value } as any)}
@@ -177,7 +213,7 @@ export function PropertiesPanel() {
                 return (
                     <Box mb="4">
                         <Box mb="2">
-                            <Text as="div" size="2" mb="1" weight="bold">Gap</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">Boşluk</Text>
                             <TextField.Root
                                 type="number"
                                 value={(selectedComponent as any).gap}
@@ -185,34 +221,34 @@ export function PropertiesPanel() {
                             />
                         </Box>
                         <Box mb="2">
-                            <Text as="div" size="2" mb="1" weight="bold">Align Items</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">Öğeleri Hizala</Text>
                             <Select.Root
                                 value={(selectedComponent as any).alignItems}
                                 onValueChange={(val) => updateComponent(selectedComponent.id, { alignItems: val } as any)}
                             >
                                 <Select.Trigger />
                                 <Select.Content>
-                                    <Select.Item value="flex-start">Start</Select.Item>
-                                    <Select.Item value="center">Center</Select.Item>
-                                    <Select.Item value="flex-end">End</Select.Item>
-                                    <Select.Item value="stretch">Stretch</Select.Item>
+                                    <Select.Item value="flex-start">Başlangıç</Select.Item>
+                                    <Select.Item value="center">Merkez</Select.Item>
+                                    <Select.Item value="flex-end">Son</Select.Item>
+                                    <Select.Item value="stretch">Uzat</Select.Item>
                                 </Select.Content>
                             </Select.Root>
                         </Box>
                         <Box>
-                            <Text as="div" size="2" mb="1" weight="bold">Justify Content</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">İçeriği Hizala</Text>
                             <Select.Root
                                 value={(selectedComponent as any).justifyContent}
                                 onValueChange={(val) => updateComponent(selectedComponent.id, { justifyContent: val } as any)}
                             >
                                 <Select.Trigger />
                                 <Select.Content>
-                                    <Select.Item value="flex-start">Start</Select.Item>
-                                    <Select.Item value="center">Center</Select.Item>
-                                    <Select.Item value="flex-end">End</Select.Item>
-                                    <Select.Item value="space-between">Space Between</Select.Item>
-                                    <Select.Item value="space-around">Space Around</Select.Item>
-                                    <Select.Item value="space-evenly">Space Evenly</Select.Item>
+                                    <Select.Item value="flex-start">Başlangıç</Select.Item>
+                                    <Select.Item value="center">Merkez</Select.Item>
+                                    <Select.Item value="flex-end">Son</Select.Item>
+                                    <Select.Item value="space-between">Aralarında</Select.Item>
+                                    <Select.Item value="space-around">Çevresinde</Select.Item>
+                                    <Select.Item value="space-evenly">Eşit</Select.Item>
                                 </Select.Content>
                             </Select.Root>
                         </Box>
@@ -222,7 +258,7 @@ export function PropertiesPanel() {
                 return (
                     <Box mb="4">
                         <Box mb="2">
-                            <Text as="div" size="2" mb="1" weight="bold">Gap</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">Boşluk</Text>
                             <TextField.Root
                                 type="number"
                                 value={(selectedComponent as any).gap}
@@ -230,17 +266,17 @@ export function PropertiesPanel() {
                             />
                         </Box>
                         <Box>
-                            <Text as="div" size="2" mb="1" weight="bold">Align Items</Text>
+                            <Text as="div" size="2" mb="1" weight="bold">Öğeleri Hizala</Text>
                             <Select.Root
                                 value={(selectedComponent as any).alignItems}
                                 onValueChange={(val) => updateComponent(selectedComponent.id, { alignItems: val } as any)}
                             >
                                 <Select.Trigger />
                                 <Select.Content>
-                                    <Select.Item value="flex-start">Start</Select.Item>
-                                    <Select.Item value="center">Center</Select.Item>
-                                    <Select.Item value="flex-end">End</Select.Item>
-                                    <Select.Item value="stretch">Stretch</Select.Item>
+                                    <Select.Item value="flex-start">Başlangıç</Select.Item>
+                                    <Select.Item value="center">Merkez</Select.Item>
+                                    <Select.Item value="flex-end">Son</Select.Item>
+                                    <Select.Item value="stretch">Uzat</Select.Item>
                                 </Select.Content>
                             </Select.Root>
                         </Box>
@@ -263,7 +299,7 @@ export function PropertiesPanel() {
         }}>
             <Box className="border-gray-200 bg-white flex flex-col w-full h-full">
                 <Box p="4" className="border-b border-gray-100 bg-gray-50 flex-shrink-0">
-                    <Heading size="3">Properties</Heading>
+                    <Heading size="3">Özellikler</Heading>
                     <Text size="1" color="gray">ID: {selectedComponent.id}</Text>
                 </Box>
 
@@ -290,10 +326,12 @@ export function PropertiesPanel() {
                 </Flex>
 
                 <Box p="4" className="border-t border-gray-100">
-                    <Button color="red" variant="soft" className="w-full" onClick={handleDelete}>
-                        <Trash2 size={16} />
-                        Delete Component
-                    </Button>
+                    <SimpleTooltip content="Bu bileşeni rapordan kalıcı olarak sil">
+                        <Button color="red" variant="soft" className="w-full" onClick={handleDelete}>
+                            <Trash2 size={16} />
+                            Bileşeni Sil
+                        </Button>
+                    </SimpleTooltip>
                 </Box>
             </Box>
         </ScrollArea >
