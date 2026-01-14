@@ -16,7 +16,10 @@ export default function LoginPage() {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!supabase) return;
+        if (!supabase) {
+            setError('Supabase bağlantısı kurulamadı. Lütfen çevre değişkenlerini kontrol edin.');
+            return;
+        }
 
         setLoading(true);
         setError(null);
