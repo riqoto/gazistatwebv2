@@ -314,7 +314,7 @@ export function MainLayout() {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
             >
-                <Grid columns="250px 1fr 320px" rows="100%" flexGrow="1" gap="0" className="overflow-hidden">
+                <Grid columns="250px 1fr 350px" rows="100%" flexGrow="1" gap="0" className="overflow-hidden">
                     <Sidebar />
                     <Box className="bg-gazi-sky-50 overflow-hidden relative">
                         <Canvas />

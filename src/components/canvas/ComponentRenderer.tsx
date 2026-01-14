@@ -7,6 +7,8 @@ import { Box, Heading, Text, Card, Flex, Callout } from '@radix-ui/themes';
 import { useBuilderStore } from '@/store/useBuilderStore';
 import { DataViewRenderer } from './DataViewRenderer';
 import { Info, CheckCircle, TriangleAlert, AlertOctagon, Image } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { SecureImage } from '@/components/ui/SecureImage';
 
 interface ComponentRendererProps {
     component: ComponentSchema;
@@ -105,6 +107,22 @@ export function ComponentRenderer({ component, isSelected, readOnly = false }: C
                 );
             case 'image':
                 const src = (component as any).src;
+                const { user } = useAuth(); // Check auth status
+
+                // If not authenticated, show beta message
+                if (!user) {
+                    return (
+                        <Card variant="surface" className="bg-amber-50 border-amber-200">
+                            <Flex align="center" gap="3" p="2">
+                                <TriangleAlert size={18} className="text-amber-600" />
+                                <Text size="2" color="amber" weight="medium">
+                                    Görseller beta sürümünde sadece kayıtlı kullanıcılara açıktır.
+                                </Text>
+                            </Flex>
+                        </Card>
+                    );
+                }
+
                 if (!src) {
                     return (
                         <Flex
@@ -125,13 +143,13 @@ export function ComponentRenderer({ component, isSelected, readOnly = false }: C
                 }
                 return (
                     <Box className="relative group">
-                        <img
+                        <SecureImage
                             src={src}
                             alt={(component as any).alt}
                             draggable={false}
+                            width={(component as any).width}
+                            height={(component as any).height}
                             style={{
-                                width: (component as any).width,
-                                height: (component as any).height,
                                 maxWidth: '100%',
                                 objectFit: 'cover',
                                 // Only disable interaction if meant to be strict, but usually safe to leave
@@ -158,7 +176,7 @@ export function ComponentRenderer({ component, isSelected, readOnly = false }: C
 
             case 'data-view':
                 return (
-                    <Box className="w-full overflow-hidden rounded p-2 bg-white">
+                    <Box className="w-full overflow-hidden rounded bg-white">
                         <DataViewRenderer component={component as DataViewComponent} />
                     </Box>
                 );

@@ -10,7 +10,7 @@ export const supabase = supabaseUrl && supabaseKey
     : null;
 
 export const saveReport = async (slug: string, layout: LayoutJSON) => {
-    if (!supabase) throw new Error('Supabase client not initialized. Check environment variables.');
+    if (!supabase) return { data: null, error: new Error('Supabase client not initialized.') };
 
     // Upsert the report based on slug
     const { data, error } = await supabase
@@ -19,8 +19,7 @@ export const saveReport = async (slug: string, layout: LayoutJSON) => {
         .select()
         .single();
 
-    if (error) throw error;
-    return data;
+    return { data, error };
 };
 
 export const getReport = async (slug: string): Promise<LayoutJSON | null> => {
@@ -64,5 +63,20 @@ export const uploadImage = async (file: File) => {
         .from(BUCKET_NAME)
         .getPublicUrl(filePath);
 
-    return publicUrl;
+    // Return filename and publicUrl (filename is needed for signed URLs later if bucket is private)
+    return { fileName: filePath, publicUrl };
+};
+
+export const getSignedUrl = async (path: string) => {
+    if (!supabase) return null;
+    const { data, error } = await supabase.storage
+        .from('images')
+        .createSignedUrl(path, 3600); // 1 hour expiry
+
+    if (error) {
+        console.error('Error creating signed URL:', error);
+        return null;
+    }
+
+    return data.signedUrl;
 };

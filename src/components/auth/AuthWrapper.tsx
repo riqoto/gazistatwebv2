@@ -1,9 +1,7 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { Flex, Spinner, Box } from '@radix-ui/themes';
+import { Flex, Spinner } from '@radix-ui/themes';
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
     const { user, loading } = useAuth();

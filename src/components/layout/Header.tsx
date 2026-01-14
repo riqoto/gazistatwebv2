@@ -150,13 +150,9 @@ export function Header() {
             const { error } = await saveReport(publishPath, layout);
             if (error) {
                 console.error("Publish error:", error);
-                // Handle specific Supabase error codes if needed, e.g. duplicate slug
-                if (error.code === '23505') { // unique_violation
-                    // Although we use upsert, depending on RLS policies this might change
-                    // For now, upsert handles duplicates by updating.
-                    // If error persists, it might be something else.
-                }
-                showFeedback('Yayınlama Hatası', 'Rapor yayınlanırken bir sorun oluştu. Lütfen tekrar deneyin.', 'error');
+                const errorMsg = (error as any).message || 'Bilinmeyen hata';
+                const errorDetails = (error as any).details || '';
+                showFeedback('Yayınlama Hatası', `Rapor yayınlanırken bir sorun oluştu: ${errorMsg} ${errorDetails}`, 'error');
             } else {
                 setPublishDialogOpen(false);
                 setFeedback({

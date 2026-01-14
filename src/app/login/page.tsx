@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Flex, Box, Card, Heading, Text, TextField, Button, Callout } from '@radix-ui/themes';
-import { LogIn, Info } from 'lucide-react';
+import { Flex, Box, Card, Heading, Text, TextField, Button, Callout, IconButton } from '@radix-ui/themes';
+import { LogIn, Info, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const router = useRouter();
@@ -77,12 +78,24 @@ export default function LoginPage() {
                                 <Box>
                                     <Text as="div" size="2" mb="1" weight="bold">Şifre</Text>
                                     <TextField.Root
-                                        type="password"
+                                        type={showPassword ? "text" : "password"}
                                         placeholder="••••••••"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
-                                    />
+                                    >
+                                        <TextField.Slot side="right">
+                                            <IconButton
+                                                type="button"
+                                                variant="ghost"
+                                                size="1"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                tabIndex={-1}
+                                            >
+                                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </IconButton>
+                                        </TextField.Slot>
+                                    </TextField.Root>
                                 </Box>
                                 <Button type="submit" size="3" disabled={loading}>
                                     {loading ? 'Giriş yapılıyor...' : (

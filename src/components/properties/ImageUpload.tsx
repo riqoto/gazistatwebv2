@@ -2,9 +2,10 @@
 
 import { useState, useRef } from 'react';
 import { Button, Text, Flex, Box, TextField, IconButton } from '@radix-ui/themes';
-import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Loader2, Image as ImageIcon, FileWarning } from 'lucide-react';
 import { uploadImage } from '@/lib/supabase';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { SecureImage } from '@/components/ui/SecureImage';
 
 interface ImageUploadProps {
     value: string;
@@ -36,8 +37,8 @@ export function ImageUpload({ value, onChange, label = 'Görsel URL veya Yükle'
         setError(null);
 
         try {
-            const url = await uploadImage(file);
-            onChange(url);
+            const { publicUrl } = await uploadImage(file);
+            onChange(publicUrl);
         } catch (err: any) {
             console.error('Upload failed:', err);
             setError('Yükleme başarısız oldu. Lütfen tekrar deneyin.');
@@ -54,9 +55,10 @@ export function ImageUpload({ value, onChange, label = 'Görsel URL veya Yükle'
             <Flex justify="between" align="center">
                 <Text as="label" size="2" weight="bold">{label}</Text>
             </Flex>
-            <Box p="2" className="bg-amber-50 border border-amber-200 rounded">
+            <Box p="2" className="bg-amber-50 border flex flex-row items-center justify-center border-amber-200 rounded">
                 <Text size="1" color="amber" weight="bold">
-                    ⚠️ Bu bir demodur, önemli verileri yüklemeyin.
+                    <FileWarning className='text-amber-900' size={16} />
+                    Bu bir demodur, önemli verileri yüklemeyin.
                 </Text>
             </Box>
 
@@ -109,7 +111,7 @@ export function ImageUpload({ value, onChange, label = 'Görsel URL veya Yükle'
 
             {value && (
                 <Box mt="2" className="relative group rounded overflow-hidden border border-gray-200 bg-gray-50 aspect-video">
-                    <img
+                    <SecureImage
                         src={value}
                         alt="Preview"
                         className="w-full h-full object-contain"

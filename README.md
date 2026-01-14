@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+#  Gazistat Rapor Oluşturucu Kullanım Kılavuzu
 
-## Getting Started
+Hoş geldiniz! Bu kılavuz, Gazistat Rapor Oluşturucu'yu kullanarak nasıl rapor hazırlayabileceğinizi adım adım açıklamaktadır.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+##  Uygulama Panelleri (Şema)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Uygulama arayüzü, iş akışınızı kolaylaştırmak için 4 ana bölüme ayrılmıştır:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1.  **Üst Çubuk (Header)**: Raporu kaydetme, yayınlama ve dışa aktarma gibi ana kontrollerin bulunduğu alandır.
+2.  **Sol Panel (Araç Kutusu)**: Raporunuza ekleyebileceğiniz bileşenlerin (grafik, metin, görsel vb.) bulunduğu kütüphanedir.
+3.  **Orta Alan (Çizim Alanı)**: Raporunuzun görsel olarak tasarlandığı, A4 formatında sayfalardan oluşan ana çalışma alanıdır.
+4.  **Sağ Panel (Müfettiş)**: Seçtiğiniz bir bileşenin içeriğini (yazısını, rengini, verisini) özelleştirebileceğiniz ayarlar panelidir.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+##  Temel Özellikler ve Butonlar
 
-To learn more about Next.js, take a look at the following resources:
+###  Rapor Tasarlama
+- **Bileşen Ekleme**: Sol paneldeki bileşenleri (Başlık, Grafik, Metin vb.) farenizle tutarak orta alandaki beyaz sayfalara sürükleyip bırakın.
+- **Düzenleme**: Sayfa üzerindeki herhangi bir bileşene tıkladığınızda, sağ panelde o bileşene özel ayarlar açılır. Buradan metni değiştirebilir veya grafiğin verilerini güncelleyebilirsiniz.
+- **Sıralama**: Bileşenleri sayfa içinde yukarı veya aşağı sürükleyerek yerlerini değiştirebilirsiniz.
+- **Sayfa Yönetimi**: En alttaki **"Yeni Sayfa Ekle"** butonuyla raporunuza yeni sayfalar ekleyebilirsiniz. Sayfaların yanındaki çöp kutusu simgesiyle sayfaları silebilirsiniz.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+###  Kayıt ve Paylaşım (Üst Bar)
+- **Başlık Girişi**: Sol üst taraftaki metin kutusuna raporunuzun adını yazın.
+- **Buluta Kaydet**: Raporu sistemde saklamak için **"Buluta Kaydet"** butonunu kullanın.
+- **Yayınla (Web)**: Raporunuzu canlı bir web sayfası olarak paylaşmak için benzersiz bir isim (slug) verin ve yayınlayın.
+- **PDF Yayınla**: Raporunuzu anında profesyonel bir PDF dosyası olarak indirin.
+- **Dışa/İçe Aktar**: Raporunuzu bilgisayarınıza dosya olarak kaydedebilir (JSON/Word) veya daha önce kaydettiğiniz bir raporu tekrar yükleyebilirsiniz.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+##  İpuçları
+- **Hızlı Silme**: Bir bileşeni silmek için onu tutup sayfanın en altına doğru sürükleyin (Silme Alanı).
+- **Ölçekleme**: Sağ alt köşedeki **+% / -%** butonlarını kullanarak çizim alanını yakınlaştırıp uzaklaştırabilirsiniz.
+- **Erişim**: Editöre girmek için yönetici hesabınızla giriş yapmanız gerekmektedir. Raporlarınız yayınlandığında, başkaları tarafından sadece görüntülenebilir (düzenlenemez).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+##  Teknik Kurulum (Geliştiriciler İçin)
+
+1.  `npm install` komutuyla bağımlılıkları yükleyin.
+2.  `.env.local` dosyasına Supabase URL ve Key bilgilerinizi ekleyin.
+3.  `npm run dev` ile sistemi başlatın.
+
+---
+*Gazi Üniversitesi İstatistik Bölümü için geliştirilmiştir.*

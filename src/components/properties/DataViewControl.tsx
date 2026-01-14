@@ -3,7 +3,7 @@
 import { Box, Flex, Text, TextArea, Select, Button, TextField, Grid, Badge } from '@radix-ui/themes';
 import { ComponentStyles, DataViewComponent } from '@/types/schema';
 import { getKeysFromData } from '@/utils/data-processing';
-import { Plus, Trash2, BarChart, Activity, PieChart, Table as TableIcon } from 'lucide-react';
+import { Plus, Trash2, BarChart, Activity, PieChart, Table as TableIcon, FileWarning } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface DataViewControlProps {
@@ -133,6 +133,13 @@ export function DataViewControl({ component, onUpdate }: DataViewControlProps) {
 
     return (
         <Box>
+            <Box mb="3" p="2" className="bg-amber-50 border flex flex-row items-center justify-center border-amber-200 rounded">
+                <Text size="1" color="amber" weight="bold">
+                    <FileWarning className='text-amber-900' size={16} />
+                    Bu bir demodur, önemli verileri yüklemeyin.
+                </Text>
+            </Box>
+
             <Text size="2" weight="bold" mb="2">Veri Kaynağı (JSON)</Text>
             {isTooLarge ? (
                 <Box className="p-4 bg-yellow-50 text-yellow-800 rounded border border-yellow-200">

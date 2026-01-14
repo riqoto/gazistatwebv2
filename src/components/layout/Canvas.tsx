@@ -191,7 +191,7 @@ export function Canvas() {
 
             {/* Zoom Controls */}
             <Flex
-                className="fixed bottom-8 right-85 bg-white shadow-lg rounded-full p-2 border border-gray-200 z-50"
+                className="fixed bottom-8 right-95 bg-white shadow-lg rounded-full p-2 border border-gray-200 z-50"
                 align="center"
                 gap="2"
             >

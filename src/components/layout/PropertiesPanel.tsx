@@ -292,13 +292,13 @@ export function PropertiesPanel() {
     const styles = selectedComponent.styles || {};
 
     return (
-        <ScrollArea type="auto" className='w-[320px]' scrollbars="vertical" style={{
+        <ScrollArea type="auto" className='w-[350px]' scrollbars="vertical" style={{
             scrollbarWidth: 'thin',
             scrollbarColor: '#cbd5e0 #f7fafc',
-            padding: 16
+            padding: 4
         }}>
-            <Box className="border-gray-200 bg-white flex flex-col w-full h-full">
-                <Box p="4" className="border-b border-gray-100 bg-gray-50 flex-shrink-0">
+            <Box className="border-gray-200 bg-white flex flex-col w-full h-full rounded">
+                <Box p="4" className="border-b border-gray-100 bg-gray-50 flex-shrink-0 rounded-t">
                     <Heading size="3">Özellikler</Heading>
                     <Text size="1" color="gray">ID: {selectedComponent.id}</Text>
                 </Box>
