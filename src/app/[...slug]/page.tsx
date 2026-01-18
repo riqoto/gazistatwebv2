@@ -50,7 +50,7 @@ export default function ViewerPage() {
     if (!layout) {
         return (
             <Flex align="center" justify="center" height="100vh">
-                <Text>Rapor yüklünüyor...</Text>
+                <Text>Rapor yükleniyor...</Text>
             </Flex>
         );
     }
