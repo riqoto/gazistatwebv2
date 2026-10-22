@@ -1,4 +1,4 @@
-import { toJpeg } from 'html-to-image';
+import { toJpeg, toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
 
 export const exportToPdf = async (
