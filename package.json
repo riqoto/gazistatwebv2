@@ -36,6 +36,7 @@
     "jspdf": "^4.0.0",
     "lucide-react": "^0.562.0",
     "mammoth": "^1.11.0",
+    "my-app": ".",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-color": "^2.19.3",

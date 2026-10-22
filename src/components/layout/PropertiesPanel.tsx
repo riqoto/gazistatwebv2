@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Heading, Flex, Button, TextField, Separator, Text, ScrollArea, Select } from '@radix-ui/themes';
+import { Box, Heading, Flex, Button, TextField, TextArea, Separator, Text, ScrollArea, Select } from '@radix-ui/themes';
 import { useBuilderStore } from '@/store/useBuilderStore';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { Trash2 } from 'lucide-react';
@@ -112,7 +112,9 @@ export function PropertiesPanel() {
                 return (
                     <Box mb="4">
                         <Text as="div" size="2" mb="1" weight="bold">İçerik</Text>
-                        <TextField.Root
+                        <TextArea
+                            rows={6}
+                            resize="vertical"
                             value={(selectedComponent as any).content}
                             onChange={(e) => updateComponent(selectedComponent.id, { content: e.target.value } as any)}
                         />
@@ -314,7 +316,7 @@ export function PropertiesPanel() {
                     <SpacingControl styles={styles} onChange={handleStyleChange} />
                     <Separator size="4" />
 
-                    {(selectedComponent.type === 'heading' || selectedComponent.type === 'text' || selectedComponent.type === 'metric-card') && (
+                    {(selectedComponent.type === 'heading' || selectedComponent.type === 'text' || selectedComponent.type === 'metric-card' || selectedComponent.type === 'alert') && (
                         <>
                             <TypographyControl styles={styles} onChange={handleStyleChange} />
                             <Separator size="4" />

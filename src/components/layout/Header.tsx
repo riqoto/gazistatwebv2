@@ -7,23 +7,25 @@ import dynamic from 'next/dynamic';
 import { useState, useRef, useEffect } from 'react';
 import { exportToPdf } from '@/lib/export-utils';
 import { exportToDocx, importFromDocx } from '@/lib/docx-utils';
-import { saveReport } from '@/lib/supabase';
+import { saveReport, saveUserReportDraft } from '@/lib/supabase';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { AuthWrapper } from '@/components/auth/AuthWrapper';
+import Link from 'next/link';
 
 export function Header() {
     const layout = useBuilderStore((state) => state.layout);
     const updateReportTitle = useBuilderStore((state) => state.updateReportTitle);
     const replaceLayout = useBuilderStore((state) => state.replaceLayout);
+    const reportId = useBuilderStore((state) => state.reportId);
     const { user, signOut } = useAuth();
 
     // State restored
     const [isGenerating, setIsGenerating] = useState(false);
+    const [operation, setOperation] = useState<{ open: boolean; title: string; message: string; progress?: number }>({ open: false, title: '', message: '' });
     const [publishDialogOpen, setPublishDialogOpen] = useState(false);
     const [publishPath, setPublishPath] = useState('');
-    const [docxExportDialogOpen, setDocxExportDialogOpen] = useState(false); // [NEW]
     const fileInputRef = useRef<HTMLInputElement>(null);
     const docxInputRef = useRef<HTMLInputElement>(null); // [NEW]
 
@@ -35,67 +37,81 @@ export function Header() {
 
     const handleDownload = async () => {
         setIsGenerating(true);
+        setOperation({ open: true, title: 'PDF hazırlanıyor', message: 'Sayfalar sırayla görüntüye dönüştürülüyor.' });
         try {
             await new Promise(resolve => setTimeout(resolve, 100)); // Allow UI flush
 
-            await exportToPdf('canvas-content', `${layout.title.toLowerCase().replace(/\s+/g, '_')}.pdf`);
+            await exportToPdf('canvas-content', `${layout.title.toLowerCase().replace(/\s+/g, '_')}.pdf`, (completed, total) => {
+                setOperation({ open: true, title: 'PDF hazırlanıyor', message: `Sayfa ${completed} / ${total} işleniyor`, progress: Math.round(completed / total * 100) });
+            });
 
+            setOperation({ open: false, title: '', message: '' });
             showFeedback('Başarılı', 'PDF başarıyla oluşturuldu ve indirildi.', 'success');
         } catch (error) {
             console.error('PDF Generation failed', error);
+            setOperation({ open: false, title: '', message: '' });
             showFeedback('Hata', 'PDF oluşturulamadı. Lütfen rapor içeriğini kontrol edin.', 'error');
         } finally {
             setIsGenerating(false);
         }
     };
 
-    const handleExportJSON = () => {
-        const dataStr = JSON.stringify(layout, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${layout.title.toLowerCase().replace(/\s+/g, '_')}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    const handleExportJSON = async () => {
+        setOperation({ open: true, title: 'JSON yedeği hazırlanıyor', message: 'Rapor verileri dosyaya dönüştürülüyor.' });
+        try {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const dataStr = JSON.stringify(layout);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${layout.title.toLowerCase().replace(/\s+/g, '_')}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setOperation({ open: false, title: '', message: '' });
+        } catch (error) {
+            console.error('JSON export failed', error);
+            setOperation({ open: false, title: '', message: '' });
+            showFeedback('Hata', 'JSON yedeği oluşturulamadı.', 'error');
+        }
     };
 
     const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const json = JSON.parse(event.target?.result as string);
-                if (json && json.components) {
-                    replaceLayout(json);
-                    showFeedback('Başarılı', 'Düzen başarıyla içe aktarıldı.', 'success');
-                } else {
-                    showFeedback('Hata', 'Geçersiz düzen JSON formatı.', 'error');
-                }
-            } catch (err) {
-                showFeedback('Hata', 'JSON dosyası ayrıştırılamadı.', 'error');
+        setOperation({ open: true, title: 'JSON yedeği içe aktarılıyor', message: 'Dosya okunuyor ve rapor yapısı doğrulanıyor.' });
+        void file.text().then((text) => {
+            const json = JSON.parse(text);
+            if (!json || typeof json.title !== 'string' || !Array.isArray(json.pages) || !json.pages.every((page: unknown) =>
+                typeof page === 'object' && page !== null && Array.isArray((page as { components?: unknown }).components))) {
+                throw new Error('Geçersiz rapor JSON biçimi.');
             }
-        };
-        reader.readAsText(file);
-        // Reset input
+            replaceLayout(json);
+            setOperation({ open: false, title: '', message: '' });
+            showFeedback('Başarılı', 'Düzen başarıyla içe aktarıldı.', 'success');
+        }).catch((error: unknown) => {
+            console.error('JSON import failed', error);
+            setOperation({ open: false, title: '', message: '' });
+            showFeedback('Hata', error instanceof Error ? error.message : 'JSON dosyası ayrıştırılamadı.', 'error');
+        }).finally(() => {
         e.target.value = '';
+        });
     };
 
-    // [NEW] DOCX Handlers
-    const handleExportDocx = () => {
-        setDocxExportDialogOpen(true);
-    };
-
-    const startDocxExport = async () => {
-        setDocxExportDialogOpen(false);
+    const handleExportDocx = async () => {
+        setOperation({ open: true, title: 'Word dosyası hazırlanıyor', message: 'İçerik ve görseller işleniyor.' });
         try {
-            await exportToDocx(layout, layout.title.toLowerCase().replace(/\s+/g, '_'));
+            await exportToDocx(layout, layout.title.toLowerCase().replace(/\s+/g, '_'), (completed, total, message) => {
+                setOperation({ open: true, title: 'Word dosyası hazırlanıyor', message, progress: Math.round(completed / total * 90) });
+            });
+            setOperation({ open: false, title: '', message: '' });
             showFeedback('Başarılı', 'Word dosyası oluşturuldu.', 'success');
         } catch (error) {
             console.error('DOCX Export failed', error);
+            setOperation({ open: false, title: '', message: '' });
             showFeedback('Hata', 'Word dosyası oluşturulamadı.', 'error');
         }
     };
@@ -105,37 +121,24 @@ export function Header() {
         if (!file) return;
 
         try {
-            const components = await importFromDocx(file);
-            if (components.length > 0) {
-                // Determine active page or first page
-                const targetPageId = useBuilderStore.getState().activePageId;
-                const pageIndex = layout.pages.findIndex(p => p.id === targetPageId);
-
-                if (pageIndex !== -1) {
-                    // Add imported components to current page
-                    // Note: We need a way to bulk add components or just replace page content.
-                    // The requirement is "import", implying adding to or creating content.
-                    // Given store limitations on bulk add, let's iterate or update page directly
-                    // Actually `addComponent` relies on hooks. Let's use `updateComponent` logic but for page.
-                    // Wait, `replaceLayout` replaces everything. We likely want to append to current page.
-
-                    // Workaround: We don't have bulk add to page action.
-                    // Let's iterate addComponent
-                    components.forEach(comp => {
-                        useBuilderStore.getState().addComponent(comp);
-                    });
-
-                    showFeedback('Başarılı', `${components.length} bileşen içe aktarıldı.`, 'success');
-                } else {
-                    showFeedback('Hata', 'Aktif sayfa bulunamadı.', 'error');
+            setOperation({ open: true, title: 'Word dosyası içe aktarılıyor', message: 'Dosya okunuyor ve sayfa grupları hazırlanıyor.' });
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const importedPages = await importFromDocx(file);
+            if (importedPages.length > 0) {
+                if (useBuilderStore.getState().layout.pages.length + importedPages.length > 500) {
+                    throw new Error('A report can contain up to 500 pages. Remove existing pages before importing this document.');
                 }
-
+                useBuilderStore.getState().appendPages(importedPages);
+                setOperation({ open: false, title: '', message: '' });
+                showFeedback('Başarılı', `${importedPages.length} sayfa içe aktarıldı.`, 'success');
             } else {
+                setOperation({ open: false, title: '', message: '' });
                 showFeedback('Bilgi', 'Dokümandan içe aktarılacak içerik bulunamadı veya boş.', 'info');
             }
         } catch (error) {
             console.error('DOCX Import failed', error);
-            showFeedback('Hata', 'Word dosyası okunamadı.', 'error');
+            setOperation({ open: false, title: '', message: '' });
+            showFeedback('Hata', error instanceof Error ? error.message : 'Word dosyası okunamadı.', 'error');
         }
         e.target.value = '';
     };
@@ -145,15 +148,21 @@ export function Header() {
     const handlePublish = async () => {
         if (!publishPath) return;
         setIsPublishing(true);
+        setOperation({ open: true, title: 'Web raporu yayınlanıyor', message: 'Rapor güvenli biçimde sunucuya gönderiliyor.' });
 
         try {
-            const { error } = await saveReport(publishPath, layout);
+            if (!user) throw new Error('Giriş yapmanız gerekiyor.');
+            const { error } = await saveReport(publishPath, layout, user.id);
             if (error) {
+                setOperation({ open: false, title: '', message: '' });
                 console.error("Publish error:", error);
                 const errorMsg = (error as any).message || 'Bilinmeyen hata';
                 const errorDetails = (error as any).details || '';
                 showFeedback('Yayınlama Hatası', `Rapor yayınlanırken bir sorun oluştu: ${errorMsg} ${errorDetails}`, 'error');
             } else {
+                const { error: draftError } = await saveUserReportDraft(reportId, user.id, layout, publishPath);
+                if (draftError) throw draftError;
+                setOperation({ open: false, title: '', message: '' });
                 setPublishDialogOpen(false);
                 setFeedback({
                     open: true,
@@ -164,6 +173,7 @@ export function Header() {
             }
         } catch (err: any) {
             console.error("Publishing exception:", err);
+            setOperation({ open: false, title: '', message: '' });
             showFeedback('Hata', 'Rapor veritabanına kaydedilemedi.', 'error');
         } finally {
             setIsPublishing(false);
@@ -368,6 +378,9 @@ export function Header() {
                     <DropdownMenu.Content align="end">
                         <DropdownMenu.Label>{user?.email}</DropdownMenu.Label>
                         <DropdownMenu.Separator />
+                        <DropdownMenu.Item asChild>
+                            <Link href="/dashboard">Raporlarım</Link>
+                        </DropdownMenu.Item>
                         <DropdownMenu.Item color="red" onClick={signOut}>
                             <LogOut size={16} />
                             Çıkış Yap
@@ -399,21 +412,14 @@ export function Header() {
                 </Dialog.Content>
             </Dialog.Root>
 
-            {/* DOCX Beta Warning Dialog */}
-            <Dialog.Root open={docxExportDialogOpen} onOpenChange={setDocxExportDialogOpen}>
-                <Dialog.Content style={{ maxWidth: 450 }}>
-                    <Dialog.Title>Beta Özellik Uyarısı</Dialog.Title>
-                    <Dialog.Description size="2" mb="4">
-                        Word'e aktarma özelliği şu anda geliştirme aşamasındadır (BETA).
-                        Bazı bileşenler veya stil özellikleri tam olarak desteklenmeyebilir veya hatalı görünebilir.
-                    </Dialog.Description>
-
-                    <Flex gap="3" mt="4" justify="end">
-                        <Dialog.Close>
-                            <Button variant="soft" color="gray">İptal</Button>
-                        </Dialog.Close>
-                        <Button variant="classic" onClick={startDocxExport}>Devam Et</Button>
-                    </Flex>
+            <Dialog.Root open={operation.open}>
+                <Dialog.Content style={{ maxWidth: 440 }} onEscapeKeyDown={(event) => event.preventDefault()} onPointerDownOutside={(event) => event.preventDefault()}>
+                    <Dialog.Title>{operation.title}</Dialog.Title>
+                    <Dialog.Description size="2" mb="3">{operation.message}</Dialog.Description>
+                    <Box className="h-2 overflow-hidden rounded bg-gray-200" aria-label="İşlem ilerlemesi">
+                        <Box className="h-full bg-blue-600 transition-all" style={{ width: `${operation.progress ?? 8}%` }} />
+                    </Box>
+                    <Text size="1" color="gray" mt="2">Büyük belgelerde işlem birkaç dakika sürebilir. Bu pencereyi açık tutun.</Text>
                 </Dialog.Content>
             </Dialog.Root>
         </Flex>

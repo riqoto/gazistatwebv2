@@ -1,14 +1,25 @@
 'use client';
 
-import { ComponentSchema, DataViewComponent } from '@/types/schema';
-import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Box, Heading, Text, Card, Flex, Callout } from '@radix-ui/themes';
+import { useSortable } from '@dnd-kit/sortable';
+import { useDndContext } from '@dnd-kit/core';
+import { Box } from '@radix-ui/themes';
+import { createPortal } from 'react-dom';
+import { useEffect, useState } from 'react';
+import { ComponentSchema } from '@/types/schema';
 import { useBuilderStore } from '@/store/useBuilderStore';
-import { DataViewRenderer } from './DataViewRenderer';
-import { Info, CheckCircle, TriangleAlert, AlertOctagon, Image } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { SecureImage } from '@/components/ui/SecureImage';
+import { AlertElement } from './elements/AlertElement';
+import { ColumnElement } from './elements/ColumnElement';
+import { ContainerFlexElement } from './elements/ContainerFlexElement';
+import { DataViewElement } from './elements/DataViewElement';
+import { DividerElement } from './elements/DividerElement';
+import { HeadingElement } from './elements/HeadingElement';
+import { ImageElement } from './elements/ImageElement';
+import { MetricCardElement } from './elements/MetricCardElement';
+import { RowElement } from './elements/RowElement';
+import { SpacerElement } from './elements/SpacerElement';
+import { TextElement } from './elements/TextElement';
+import { GripVertical } from 'lucide-react';
 
 interface ComponentRendererProps {
     component: ComponentSchema;
@@ -16,294 +27,168 @@ interface ComponentRendererProps {
     readOnly?: boolean;
 }
 
-export function ComponentRenderer({ component, isSelected, readOnly = false }: ComponentRendererProps) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({
+export function ComponentRenderer({ component, isSelected = false, readOnly = false }: ComponentRendererProps) {
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+    const { active, over } = useDndContext();
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
         id: component.id,
-        disabled: readOnly // Disable dnd-kit if readOnly
+        disabled: readOnly,
     });
-
     const selectComponent = useBuilderStore((state) => state.selectComponent);
+    const removeComponent = useBuilderStore((state) => state.removeComponent);
+    const moveComponent = useBuilderStore((state) => state.moveComponent);
+    const updateComponent = useBuilderStore((state) => state.updateComponent);
+    const selectedComponentIds = useBuilderStore((state) => state.selectedComponentIds);
+    const styles = component.styles ?? {};
+    const componentIsSelected = isSelected || selectedComponentIds.includes(component.id);
+    const isDropTarget = !readOnly && over?.id === component.id && active?.id !== component.id;
+    const activeRect = active?.rect.current.translated;
+    const insertAfter = Boolean(
+        activeRect && over && activeRect.top + activeRect.height / 2 > over.rect.top + over.rect.height / 2
+    );
+    const update = (updates: Partial<ComponentSchema>) => updateComponent(component.id, updates);
+    const select = () => selectComponent(component.id);
 
-    const styles = component.styles || {};
+    useEffect(() => {
+        if (!contextMenu) return;
 
-    const style: React.CSSProperties = {
-        // Transform from dnd-kit (only if not readOnly)
-        transform: !readOnly ? CSS.Transform.toString(transform) : undefined,
-        transition: !readOnly ? transition : undefined,
+        const closeMenu = () => setContextMenu(null);
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') closeMenu();
+        };
+        document.addEventListener('pointerdown', closeMenu);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('pointerdown', closeMenu);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [contextMenu]);
 
-        // Interactions
-        opacity: isDragging ? 0.5 : 1,
-        // Only show selection outline in edit mode
-        outline: !readOnly && isSelected ? '2px solid #627d98' : '2px solid transparent',
-        outlineOffset: '-2px',
-
-        // Spacing
-        paddingTop: styles.paddingTop,
-        paddingRight: styles.paddingRight,
-        paddingBottom: styles.paddingBottom,
-        paddingLeft: styles.paddingLeft,
-        marginTop: styles.marginTop,
-        marginBottom: styles.marginBottom,
-
-        // Typography
-        fontSize: styles.fontSize,
-        fontWeight: styles.fontWeight,
-        textAlign: styles.textAlign,
-        color: styles.color,
-        lineHeight: styles.lineHeight,
-
-        // Appearance
-        backgroundColor: styles.backgroundColor,
-        borderColor: styles.borderColor,
-        borderWidth: styles.borderWidth,
-        borderStyle: styles.borderStyle,
-        borderRadius: styles.borderRadius,
-
-        // Layout
-        width: styles.width,
-        height: styles.height,
-    };
-
-    const handleClick = (e: React.MouseEvent) => {
-        if (readOnly) return; // Allow normal interaction
-        e.stopPropagation();
-        selectComponent(component.id);
-    };
-
-    const renderContent = () => {
+    const renderElement = () => {
         switch (component.type) {
             case 'heading':
-                return (
-                    <Heading
-                        style={{
-                            fontSize: component.styles?.fontSize || undefined,
-                            color: (component.styles?.color as string) || 'inherit'
-                        }}
-                    >
-                        {(component as any).content}
-                    </Heading>
-                );
+                return <HeadingElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'text':
-                return (
-                    <Text>
-                        {(component as any).content}
-                    </Text>
-                );
+                return <TextElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'metric-card':
-                return (
-                    <Card>
-                        <Flex direction="column" gap="1">
-                            <Text size="2" color="gray">{(component as any).label}</Text>
-                            <Heading size="6">{(component as any).value}</Heading>
-                        </Flex>
-                    </Card>
-                );
+                return <MetricCardElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'image':
-                const src = (component as any).src;
-                const { user } = useAuth(); // Check auth status
-
-                // If not authenticated, show beta message
-                if (!user) {
-                    return (
-                        <Card variant="surface" className="bg-amber-50 border-amber-200">
-                            <Flex align="center" gap="3" p="2">
-                                <TriangleAlert size={18} className="text-amber-600" />
-                                <Text size="2" color="amber" weight="medium">
-                                    Görseller beta sürümünde sadece kayıtlı kullanıcılara açıktır.
-                                </Text>
-                            </Flex>
-                        </Card>
-                    );
-                }
-
-                if (!src) {
-                    return (
-                        <Flex
-                            justify="center"
-                            align="center"
-                            className="bg-gray-50 border-2 border-dashed border-gray-300 rounded text-gray-400"
-                            style={{
-                                width: (component as any).width || '100%',
-                                height: (component as any).height || '200px',
-                                minHeight: '100px'
-                            }}
-                        >
-                            <Flex direction="column" align="center" gap="2">
-                                <Box><Image /></Box>
-                            </Flex>
-                        </Flex>
-                    );
-                }
-                return (
-                    <Box className="relative group">
-                        <SecureImage
-                            src={src}
-                            alt={(component as any).alt}
-                            draggable={false}
-                            width={(component as any).width}
-                            height={(component as any).height}
-                            style={{
-                                maxWidth: '100%',
-                                objectFit: 'cover',
-                                // Only disable interaction if meant to be strict, but usually safe to leave
-                                userSelect: readOnly ? 'text' : 'none',
-                                pointerEvents: readOnly ? 'auto' : 'none'
-                            }}
-                        />
-                    </Box>
-                );
+                return <ImageElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'divider':
-                return (
-                    <Box py="2">
-                        <Box
-                            style={{
-                                borderTopWidth: (component as any).thickness,
-                                borderTopStyle: (component as any).style || 'solid',
-                                borderColor: (component.styles?.color as string) || '#e5e7eb'
-                            }}
-                        />
-                    </Box>
-                );
+                return <DividerElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'spacer':
-                return <Box style={{ height: (component as any).height }} />;
-
+                return <SpacerElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'data-view':
-                return (
-                    <Box className="w-full overflow-hidden rounded bg-white">
-                        <DataViewRenderer component={component as DataViewComponent} />
-                    </Box>
-                );
+                return <DataViewElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'container-flex':
-                const children = (component as any).children || [];
-                const direction = (component as any).direction || 'row';
-                const gap = (component as any).gap || 0;
-                const alignItems = (component as any).alignItems || 'stretch';
-                const justifyContent = (component as any).justifyContent || 'flex-start';
-
-                return (
-                    <Flex
-                        direction={direction}
-                        gap={`${gap}px`}
-                        align={alignItems === 'flex-start' ? 'start' : alignItems === 'flex-end' ? 'end' : alignItems}
-                        justify={justifyContent === 'flex-start' ? 'start' : justifyContent === 'flex-end' ? 'end' : justifyContent === 'space-between' ? 'between' : justifyContent}
-                        className={`min-h-[50px] ${!readOnly ? 'border border-dashed border-gazi-navy-200' : ''}`}
-                        style={{ width: '100%' }}
-                    >
-                        {children.length === 0 ? (
-                            !readOnly && <Text size="1" className="p-2 text-gazi-navy-400">Boş Kapsayıcı</Text>
-                        ) : (
-                            children.map((child: ComponentSchema) => (
-                                <Box key={child.id} className="relative group" style={{ width: '100%' }}>
-                                    <ComponentRenderer component={child} readOnly={readOnly} />
-                                </Box>
-                            ))
-                        )}
-                    </Flex>
-                );
+                return <ContainerFlexElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'row':
-                const rowChildren = (component as any).children || [];
-                const rowGap = (component as any).gap || 0;
-                const rowAlign = (component as any).alignItems || 'center';
-                const rowJustify = (component as any).justifyContent || 'flex-start';
-
-                return (
-                    <Flex
-                        direction="row"
-                        gap={`${rowGap}px`}
-                        align={rowAlign === 'flex-start' ? 'start' : rowAlign === 'flex-end' ? 'end' : rowAlign}
-                        justify={rowJustify === 'flex-start' ? 'start' : rowJustify === 'flex-end' ? 'end' : rowJustify === 'space-between' ? 'between' : rowJustify}
-                        className={`min-h-[50px] ${!readOnly ? 'border border-dashed border-gazi-navy-200' : ''}`}
-                        style={{ width: '100%' }}
-                    >
-                        {rowChildren.length === 0 ? (
-                            !readOnly && <Text size="1" className="p-2 text-gazi-navy-400">Boş Satır</Text>
-                        ) : (
-                            rowChildren.map((child: ComponentSchema) => (
-                                <Box key={child.id} className="relative group" style={{ flex: 1 }}>
-                                    <ComponentRenderer component={child} readOnly={readOnly} />
-                                </Box>
-                            ))
-                        )}
-                    </Flex>
-                );
+                return <RowElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'column':
-                const colChildren = (component as any).children || [];
-                const colGap = (component as any).gap || 0;
-                const colAlign = (component as any).alignItems || 'stretch';
-
-                return (
-                    <Flex
-                        direction="column"
-                        gap={`${colGap}px`}
-                        align={colAlign === 'flex-start' ? 'start' : colAlign === 'flex-end' ? 'end' : colAlign}
-                        className={`min-h-[50px] ${!readOnly ? 'border border-dashed border-gray-200' : ''}`}
-                        style={{ width: '100%' }}
-                    >
-                        {colChildren.length === 0 ? (
-                            !readOnly && <Text size="1" className="p-2 text-gazi-navy-400">Boş Sütun</Text>
-                        ) : (
-                            colChildren.map((child: ComponentSchema) => (
-                                <Box key={child.id} className="relative group" style={{ width: '100%' }}>
-                                    <ComponentRenderer component={child} readOnly={readOnly} />
-                                </Box>
-                            ))
-                        )}
-                    </Flex>
-                );
+                return <ColumnElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             case 'alert':
-                const variant = (component as any).variant || 'info';
-                let icon = <Info size={16} />;
-                let color: 'blue' | 'green' | 'amber' | 'red' = 'blue';
-
-                if (variant === 'success') {
-                    icon = <CheckCircle size={16} />;
-                    color = 'green';
-                } else if (variant === 'warning') {
-                    icon = <TriangleAlert size={16} />;
-                    color = 'amber';
-                } else if (variant === 'error') {
-                    icon = <AlertOctagon size={16} />;
-                    color = 'red';
-                }
-
-                return (
-                    <Callout.Root color={color}>
-                        <Callout.Icon>
-                            {icon}
-                        </Callout.Icon>
-                        <Callout.Text>
-                            {(component as any).content}
-                        </Callout.Text>
-                    </Callout.Root>
-                );
+                return <AlertElement component={component} styles={styles} readOnly={readOnly} isSelected={componentIsSelected} onUpdate={update} onSelect={select} />;
             default:
-                return <Text>Bilinmeyen Bileşen</Text>;
+                return null;
         }
-    }
+    };
 
     return (
         <Box
             ref={!readOnly ? setNodeRef : undefined}
-            style={style}
-            {...(!readOnly ? attributes : {})}
-            {...(!readOnly ? listeners : {})}
-            onClick={handleClick}
-            onPointerDown={(e) => {
-                if (readOnly) return;
-                e.stopPropagation();
-                listeners?.onPointerDown?.(e);
+            style={{
+                width: component.type === 'divider' ? (styles.width ?? '100%') : 'fit-content',
+                maxWidth: '100%',
+                position: 'relative',
+                marginTop: styles.marginTop,
+                marginBottom: styles.marginBottom,
+                marginLeft: styles.textAlign === 'center' || styles.textAlign === 'right' ? 'auto' : undefined,
+                marginRight: styles.textAlign === 'center' ? 'auto' : undefined,
+                transform: !readOnly ? CSS.Transform.toString(transform) : undefined,
+                transition: !readOnly ? transition : undefined,
+                opacity: isDragging ? 0.5 : 1,
+                outline: !readOnly && componentIsSelected ? '2px solid #627d98' : '2px solid transparent',
+                outlineOffset: '-2px',
             }}
-            className={`relative mb-2 ${!readOnly ? 'select-none hover:border-gazi-navy-300 cursor-move' : ''} transition-colors rounded p-1`}
+            onClick={(event) => {
+                if (readOnly) return;
+                event.stopPropagation();
+                select();
+            }}
+            onContextMenu={(event) => {
+                if (readOnly) return;
+                event.preventDefault();
+                event.stopPropagation();
+                select();
+                setContextMenu({
+                    x: Math.min(event.clientX, window.innerWidth - 176),
+                    y: Math.min(event.clientY, window.innerHeight - 136),
+                });
+            }}
+            className={!readOnly ? 'group relative max-w-full' : 'relative max-w-full'}
             data-component-id={component.id}
         >
-            {renderContent()}
+            {!readOnly && (
+                <button
+                    type="button"
+                    aria-label="Bileşeni taşımak için sürükle"
+                    title="Taşımak için sürükle"
+                    ref={setActivatorNodeRef}
+                    {...attributes}
+                    {...listeners}
+                    style={{ touchAction: 'none' }}
+                    className="absolute -left-7 top-1/2 z-20 flex h-8 w-6 -translate-y-1/2 cursor-grab items-center justify-center rounded border border-slate-200 bg-white text-slate-500 opacity-0 shadow-sm transition-opacity hover:bg-sky-50 hover:text-sky-700 focus:opacity-100 group-hover:opacity-100 active:cursor-grabbing"
+                >
+                    <GripVertical size={16} aria-hidden="true" />
+                </button>
+            )}
+            {renderElement()}
+            {isDropTarget && (
+                <div
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute left-0 right-0 z-30 h-[3px] rounded-full bg-sky-500 shadow-[0_0_0_3px_rgba(14,165,233,0.16)] transition-all duration-100 ${insertAfter ? '-bottom-1' : '-top-1'}`}
+                />
+            )}
+            {contextMenu && typeof document !== 'undefined' && createPortal(
+                <div
+                    role="menu"
+                    aria-label="Eleman işlemleri"
+                    className="fixed z-[10000] min-w-40 overflow-hidden rounded-md border border-gray-200 bg-white p-1 shadow-lg"
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onContextMenu={(event) => event.preventDefault()}
+                >
+                    <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full rounded px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => {
+                            moveComponent(component.id, -1);
+                            setContextMenu(null);
+                        }}
+                    >Yukarı al</button>
+                    <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full rounded px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => {
+                            moveComponent(component.id, 1);
+                            setContextMenu(null);
+                        }}
+                    >Aşağı al</button>
+                    <div className="my-1 border-t border-gray-100" />
+                    <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full rounded px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                        onClick={() => {
+                            removeComponent(component.id);
+                            setContextMenu(null);
+                        }}
+                    >Sil</button>
+                </div>,
+                document.body
+            )}
         </Box>
     );
 }

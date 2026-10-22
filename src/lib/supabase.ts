@@ -12,12 +12,12 @@ export const supabase = supabaseUrl && supabaseKey
 
 // ─── Report CRUD ─────────────────────────────────────────────────────────────
 
-export const saveReport = async (slug: string, layout: LayoutJSON) => {
+export const saveReport = async (slug: string, layout: LayoutJSON, ownerId: string) => {
     if (!supabase) return { data: null, error: new Error('Supabase client not initialized.') };
 
     const { data, error } = await supabase
         .from('reports')
-        .upsert({ slug, data: layout }, { onConflict: 'slug' })
+        .upsert({ slug, data: layout, owner_id: ownerId }, { onConflict: 'slug' })
         .select()
         .single();
 
@@ -42,6 +42,132 @@ export const getReport = async (slug: string): Promise<LayoutJSON | null> => {
     }
 
     return data?.data as LayoutJSON;
+};
+
+export interface PublishedReport {
+    slug: string;
+    data: LayoutJSON;
+    created_at?: string;
+}
+
+export const getOwnedReports = async (ownerId: string): Promise<{ reports: PublishedReport[]; error: Error | null }> => {
+    if (!supabase) {
+        return { reports: [], error: new Error('Supabase client not initialized.') };
+    }
+
+    const { data, error } = await supabase
+        .from('reports')
+        .select('slug, data, created_at')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+
+    return {
+        reports: (data ?? []) as PublishedReport[],
+        error,
+    };
+};
+
+export const getOwnedReport = async (slug: string, ownerId: string): Promise<LayoutJSON | null> => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('reports')
+        .select('data')
+        .eq('slug', slug)
+        .eq('owner_id', ownerId)
+        .single();
+
+    if (error) return null;
+    return data?.data as LayoutJSON;
+};
+
+export interface UserReportDraft {
+    id: string;
+    title: string;
+    data: LayoutJSON;
+    published_slug: string | null;
+    updated_at: string;
+}
+
+export const saveUserReportDraft = async (
+    id: string,
+    ownerId: string,
+    layout: LayoutJSON,
+    publishedSlug?: string,
+): Promise<{ error: Error | null }> => {
+    if (!supabase) return { error: new Error('Supabase client not initialized.') };
+
+    const { error } = await supabase
+        .from('user_report_drafts')
+        .upsert({
+            id,
+            owner_id: ownerId,
+            title: layout.title,
+            data: layout,
+            updated_at: new Date().toISOString(),
+            ...(publishedSlug ? { published_slug: publishedSlug } : {}),
+        }, { onConflict: 'owner_id,id' });
+
+    return { error };
+};
+
+export const getUserReportDrafts = async (ownerId: string): Promise<{ reports: UserReportDraft[]; error: Error | null }> => {
+    if (!supabase) return { reports: [], error: new Error('Supabase client not initialized.') };
+
+    const { data, error } = await supabase
+        .from('user_report_drafts')
+        .select('id, title, data, published_slug, updated_at')
+        .eq('owner_id', ownerId)
+        .order('updated_at', { ascending: false });
+
+    return { reports: (data ?? []) as UserReportDraft[], error };
+};
+
+export const getUserReportDraft = async (id: string, ownerId: string): Promise<UserReportDraft | null> => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('user_report_drafts')
+        .select('id, title, data, published_slug, updated_at')
+        .eq('id', id)
+        .eq('owner_id', ownerId)
+        .single();
+
+    if (error) return null;
+    return data as UserReportDraft;
+};
+
+export const getLatestReports = async (): Promise<{ reports: PublishedReport[]; error: Error | null }> => {
+    if (!supabase) {
+        return { reports: [], error: new Error('Supabase client not initialized.') };
+    }
+
+    const timestampResult = await supabase
+        .from('reports')
+        .select('slug, data, created_at')
+        .order('created_at', { ascending: false })
+        .limit(60);
+
+    if (!timestampResult.error) {
+        return {
+            reports: (timestampResult.data ?? []) as PublishedReport[],
+            error: null,
+        };
+    }
+
+    const fallbackResult = await supabase
+        .from('reports')
+        .select('slug, data')
+        .limit(60);
+
+    if (fallbackResult.error) {
+        return { reports: [], error: fallbackResult.error };
+    }
+
+    return {
+        reports: (fallbackResult.data ?? []) as PublishedReport[],
+        error: null,
+    };
 };
 
 // ─── Secure Image Upload ─────────────────────────────────────────────────────

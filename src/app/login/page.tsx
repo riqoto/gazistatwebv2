@@ -32,7 +32,7 @@ export default function LoginPage() {
 
             if (error) throw error;
 
-            router.push('/');
+            router.push('/dashboard');
         } catch (err: any) {
             console.error('Login error:', err);
             setError(err.message || 'Giriş yapılamadı. Lütfen bilgilerinizi kontrol edin.');

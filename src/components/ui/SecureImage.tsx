@@ -93,7 +93,7 @@ export function SecureImage({ src, width, height, style, className, ...props }: 
             <Flex
                 align="center"
                 justify="center"
-                style={{ ...containerStyle, backgroundColor: '#f9fafb' }}
+                style={{ ...containerStyle, ...style, backgroundColor: style?.backgroundColor || '#f9fafb' }}
             >
                 <Loader2 className="animate-spin text-gray-400" size={24} />
             </Flex>
@@ -111,9 +111,12 @@ export function SecureImage({ src, width, height, style, className, ...props }: 
                 gap="2"
                 style={{
                     ...containerStyle,
-                    backgroundColor: '#fef2f2',
-                    border: '1px dashed #fecaca',
-                    borderRadius: 6,
+                    ...style,
+                    backgroundColor: style?.backgroundColor ?? '#fef2f2',
+                    border: style?.border ?? (style?.borderWidth || style?.borderColor
+                        ? `${style.borderWidth ?? 1}px ${style.borderStyle ?? 'solid'} ${style.borderColor ?? '#fecaca'}`
+                        : '1px dashed #fecaca'),
+                    borderRadius: style?.borderRadius ?? 6,
                 }}
             >
                 <ShieldX size={20} className="text-red-400" />
@@ -138,9 +141,12 @@ export function SecureImage({ src, width, height, style, className, ...props }: 
                 gap="2"
                 style={{
                     ...containerStyle,
-                    backgroundColor: '#fefce8',
-                    border: '1px dashed #fde68a',
-                    borderRadius: 6,
+                    ...style,
+                    backgroundColor: style?.backgroundColor ?? '#fefce8',
+                    border: style?.border ?? (style?.borderWidth || style?.borderColor
+                        ? `${style.borderWidth ?? 1}px ${style.borderStyle ?? 'solid'} ${style.borderColor ?? '#fde68a'}`
+                        : '1px dashed #fde68a'),
+                    borderRadius: style?.borderRadius ?? 6,
                 }}
             >
                 <ImageOff size={20} className="text-amber-400" />

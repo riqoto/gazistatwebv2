@@ -10,8 +10,8 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "Gazistat Report Builder",
-  description: "Low-code dashboard builder for Gazistat",
+  title: "Gazistat Raporları",
+  description: "Gazistat raporlarını keşfedin, arayın ve okuyun.",
 };
 
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -22,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="tr" suppressHydrationWarning>
       <body className={`${roboto.variable} antialiased`}>
         <AuthProvider>
           <Theme accentColor="blue" radius="small" scaling="95%">

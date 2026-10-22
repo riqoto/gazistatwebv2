@@ -7,6 +7,7 @@ import { useBuilderStore } from '@/store/useBuilderStore';
 import { ComponentRenderer } from '@/components/canvas/ComponentRenderer';
 import { useState } from 'react';
 import { Plus, Trash, Minus, Maximize } from 'lucide-react';
+import { Plus as PlusIcon } from 'lucide-react';
 import { Page } from '@/types/schema';
 
 interface PageSheetProps {
@@ -42,13 +43,17 @@ function PageSheet({ page, isActive, onActivate, onDelete, canDelete }: PageShee
                 ref={setNodeRef}
                 style={{ height: '297mm' }}
                 id={`page-${page.id}`} // Helper ID for PDF export
-                className={`page-container bg-white shadow-lg w-[210mm] p-8 transition-colors relative overflow-hidden ${isOver ? 'ring-2 ring-gazi-sky-400 bg-gazi-sky-50' : ''
+                className={`page-container bg-white shadow-lg w-[210mm] p-8 transition-all duration-150 relative overflow-hidden ${isOver ? 'ring-4 ring-blue-500 ring-offset-4 bg-blue-50/30' : ''
                     } ${isActive ? 'ring-1 ring-gray-400' : ''}`}
                 onClick={onActivate}
             >
                 {page.components.length === 0 ? (
-                    <Flex justify="center" align="center" direction="column" className="h-full border-2 border-dashed border-gray-200 rounded-lg min-h-[200px] p-8">
-                        <Text color="gray">Bileşenleri buraya sürükleyin</Text>
+                    <Flex justify="center" align="center" direction="column" gap="2" className={`h-full border-2 border-dashed rounded-lg min-h-[200px] p-8 transition-colors ${isOver ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'}`}>
+                        <div className={`rounded-full p-3 ${isOver ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                            <PlusIcon size={22} aria-hidden="true" />
+                        </div>
+                        <Text color="gray" weight="medium">{isOver ? 'Buraya bırak' : 'Raporunu oluşturmaya başla'}</Text>
+                        <Text size="1" color="gray">Soldaki öğeleri sayfaya sürükleyin</Text>
                     </Flex>
                 ) : (
                     <SortableContext id={page.id} items={page.components.map(c => c.id)} strategy={verticalListSortingStrategy}>

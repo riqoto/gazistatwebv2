@@ -8,7 +8,6 @@ import { useState, useMemo } from 'react';
 import {
     useReactTable,
     getCoreRowModel,
-    getPaginationRowModel,
     getSortedRowModel,
     flexRender,
     createColumnHelper,
@@ -33,9 +32,24 @@ export function DataViewRenderer({ component }: DataViewRendererProps) {
     const { viewType, data, config, formulas } = component;
 
     // Table configuration
-    const tableData = useMemo(() => data || [], [data]);
+    const tableData = data || [];
     const columnHelper = createColumnHelper<any>();
     const [sorting, setSorting] = useState<SortingState>([]);
+    const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 100 });
+    const formulaResults = useMemo(
+        () => (formulas || []).map(formula => ({
+            ...formula,
+            result: calculateStats(data, formula.key, formula.type),
+        })),
+        [data, formulas],
+    );
+    const chartData = useMemo(() => {
+        const rows = data || [];
+        const maxPoints = 2000;
+        if (rows.length <= maxPoints) return rows;
+        const step = (rows.length - 1) / (maxPoints - 1);
+        return Array.from({ length: maxPoints }, (_, index) => rows[Math.round(index * step)]);
+    }, [data]);
 
     const tableColumns = useMemo(() => {
         if (!data || data.length === 0) return [];
@@ -53,32 +67,30 @@ export function DataViewRenderer({ component }: DataViewRendererProps) {
     }, [data, config.columns]);
 
     const table = useReactTable({
-        data: tableData,
+        data: tableData.slice(pagination.pageIndex * pagination.pageSize, (pagination.pageIndex + 1) * pagination.pageSize),
         columns: tableColumns,
         getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
         getSortedRowModel: getSortedRowModel(),
+        manualPagination: true,
+        rowCount: tableData.length,
         state: {
             sorting,
+            pagination,
         },
         onSortingChange: setSorting,
-        initialState: {
-            pagination: {
-                pageSize: 10,
-            },
-        },
+        onPaginationChange: setPagination,
     });
 
     const renderFormulas = () => {
-        if (!formulas || formulas.length === 0) return null;
+        if (formulaResults.length === 0) return null;
 
         return (
             <Flex gap="4" mt="4" wrap="wrap" className="border-t border-gray-200 pt-2">
-                {formulas.map((f, i) => (
+                {formulaResults.map((f, i) => (
                     <Box key={i} className="bg-gray-50 px-3 py-1 rounded border border-gray-200">
                         <Text size="1" weight="bold" className="uppercase text-gray-400">{f.label || f.type}</Text>
-                        <Text size="3" weight="bold" className="block">
-                            {calculateStats(data, f.key, f.type).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            <Text size="3" weight="bold" className="block">
+                            {f.result.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                         </Text>
                     </Box>
                 ))}
@@ -96,7 +108,7 @@ export function DataViewRenderer({ component }: DataViewRendererProps) {
             case 'bar':
                 return (
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={data}>
+                        <BarChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey={xAxisKey} />
                             <YAxis />
@@ -111,7 +123,7 @@ export function DataViewRenderer({ component }: DataViewRendererProps) {
             case 'line':
                 return (
                     <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={data}>
+                        <LineChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey={xAxisKey} />
                             <YAxis />
@@ -128,7 +140,7 @@ export function DataViewRenderer({ component }: DataViewRendererProps) {
                     <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
                             <Pie
-                                data={data}
+                                data={chartData}
                                 cx="50%"
                                 cy="50%"
                                 labelLine={false}
@@ -138,7 +150,7 @@ export function DataViewRenderer({ component }: DataViewRendererProps) {
                                 dataKey={yAxisKeys[0]!} // Assert known because of fallback
                                 nameKey={xAxisKey}
                             >
-                                {data.map((entry, index) => (
+                                {chartData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
@@ -204,7 +216,7 @@ export function DataViewRenderer({ component }: DataViewRendererProps) {
                                     Previous
                                 </Button>
                                 <Text size="1">
-                                    Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()} ({data.length} items)
+                                    Page {pagination.pageIndex + 1} of {table.getPageCount()} ({data.length.toLocaleString()} items)
                                 </Text>
                                 <Button
                                     size="1"

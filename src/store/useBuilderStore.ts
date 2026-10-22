@@ -1,15 +1,17 @@
 import { create } from 'zustand';
 import { LayoutJSON, ComponentSchema, Page } from '@/types/schema';
-import { arrayMove } from '@dnd-kit/sortable';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface BuilderState {
     layout: LayoutJSON;
+    reportId: string;
+    reportOwnerId: string | null;
     activePageId: string;
     selectedComponentIds: string[];
 
     // Page Actions
     addPage: () => void;
+    appendPages: (pages: Array<Omit<Page, 'id'>>) => void;
     removePage: (id: string) => void;
     setActivePage: (id: string) => void;
 
@@ -21,9 +23,12 @@ interface BuilderState {
     selectComponent: (id: string | null) => void;
     selectComponents: (ids: string[]) => void;
     toggleSelection: (id: string) => void;
-    reorderComponents: (activeId: string, overId: string) => void;
+    reorderComponents: (activeId: string, overId: string, position?: 'before' | 'after') => void;
+    moveComponent: (id: string, direction: -1 | 1) => void;
     updateReportTitle: (title: string) => void;
     replaceLayout: (layout: LayoutJSON) => void;
+    setReportId: (id: string) => void;
+    setReportOwnerId: (id: string | null) => void;
     addComponentToParent: (parentId: string, component: ComponentSchema) => void;
     removeComponents: (ids: string[]) => void;
     moveComponentToPage: (componentId: string, fromPageId: string, toPageId: string, newIndex: number) => void;
@@ -97,11 +102,46 @@ const removeComponentsRecursive = (components: ComponentSchema[], ids: string[])
     }) as ComponentSchema[];
 };
 
+const moveComponentRecursive = (
+    components: ComponentSchema[],
+    id: string,
+    direction: -1 | 1
+): { components: ComponentSchema[]; moved: boolean } => {
+    const index = components.findIndex(component => component.id === id);
+    if (index !== -1) {
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= components.length) return { components, moved: false };
+
+        const reordered = [...components];
+        [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+        return {
+            components: reordered.map((component, order) => ({ ...component, order })),
+            moved: true,
+        };
+    }
+
+    for (let parentIndex = 0; parentIndex < components.length; parentIndex += 1) {
+        const component = components[parentIndex];
+        if (!('children' in component) || !Array.isArray(component.children)) continue;
+
+        const result = moveComponentRecursive(component.children, id, direction);
+        if (result.moved) {
+            const updated = [...components];
+            updated[parentIndex] = { ...component, children: result.components };
+            return { components: updated, moved: true };
+        }
+    }
+
+    return { components, moved: false };
+};
+
 const INITIAL_PAGE_ID = 'sayfa-1';
 
 export const useBuilderStore = create<BuilderState>()(
     persist(
         (set, get) => ({
+            reportId: generateId(),
+            reportOwnerId: null,
             layout: {
                 title: 'Untitled Report',
                 pageSettings: {
@@ -137,6 +177,20 @@ export const useBuilderStore = create<BuilderState>()(
                 };
             }),
 
+            appendPages: (importedPages) => set((state) => {
+                if (importedPages.length === 0) return state;
+                const pages = importedPages.map((page, index) => ({
+                    ...page,
+                    id: generateId(),
+                    name: page.name || `Imported page ${index + 1}`,
+                }));
+                return {
+                    layout: { ...state.layout, pages: [...state.layout.pages, ...pages] },
+                    activePageId: pages[0].id,
+                    selectedComponentIds: [],
+                };
+            }),
+
             removePage: (id) => set((state) => {
                 if (state.layout.pages.length <= 1) return state; // Don't delete last page
                 const newPages = state.layout.pages.filter(p => p.id !== id);
@@ -154,6 +208,10 @@ export const useBuilderStore = create<BuilderState>()(
                 const firstPageId = layout.pages?.[0]?.id || INITIAL_PAGE_ID;
                 set({ layout, activePageId: firstPageId });
             },
+
+            setReportId: (reportId) => set({ reportId }),
+
+            setReportOwnerId: (reportOwnerId) => set({ reportOwnerId }),
 
             updateReportTitle: (title) =>
                 set((state) => ({
@@ -249,21 +307,52 @@ export const useBuilderStore = create<BuilderState>()(
                     return { layout: { ...state.layout, pages } };
                 }),
 
-            reorderComponents: (activeId, overId) =>
+            reorderComponents: (activeId, overId, position = 'before') =>
                 set((state) => {
-                    const pages = state.layout.pages.map(page => {
-                        const oldIndex = page.components.findIndex((c) => c.id === activeId);
-                        const newIndex = page.components.findIndex((c) => c.id === overId);
+                    const reorderRecursive = (components: ComponentSchema[]): { components: ComponentSchema[]; moved: boolean } => {
+                        const activeIndex = components.findIndex((component) => component.id === activeId);
+                        const overIndex = components.findIndex((component) => component.id === overId);
 
-                        if (oldIndex !== -1 && newIndex !== -1) {
-                            const newComponents = arrayMove(page.components, oldIndex, newIndex).map(
-                                (c, index) => ({ ...c, order: index })
-                            );
-                            return { ...page, components: newComponents };
+                        if (activeIndex !== -1 && overIndex !== -1) {
+                            const reordered = [...components];
+                            const [movedComponent] = reordered.splice(activeIndex, 1);
+                            const adjustedOverIndex = overIndex - (activeIndex < overIndex ? 1 : 0);
+                            const insertionIndex = adjustedOverIndex + (position === 'after' ? 1 : 0);
+                            reordered.splice(insertionIndex, 0, movedComponent);
+                            return {
+                                components: reordered.map((component, index) => ({ ...component, order: index })),
+                                moved: true,
+                            };
                         }
-                        return page;
+
+                        for (let index = 0; index < components.length; index += 1) {
+                            const component = components[index];
+                            if (!('children' in component) || !Array.isArray(component.children)) continue;
+                            const result = reorderRecursive(component.children);
+                            if (result.moved) {
+                                const updated = [...components];
+                                updated[index] = { ...component, children: result.components };
+                                return { components: updated, moved: true };
+                            }
+                        }
+
+                        return { components, moved: false };
+                    };
+
+                    const pages = state.layout.pages.map(page => {
+                        const result = reorderRecursive(page.components);
+                        return result.moved ? { ...page, components: result.components } : page;
                     });
 
+                    return { layout: { ...state.layout, pages } };
+                }),
+
+            moveComponent: (id, direction) =>
+                set((state) => {
+                    const pages = state.layout.pages.map(page => {
+                        const result = moveComponentRecursive(page.components, id, direction);
+                        return result.moved ? { ...page, components: result.components } : page;
+                    });
                     return { layout: { ...state.layout, pages } };
                 }),
 
@@ -291,6 +380,7 @@ export const useBuilderStore = create<BuilderState>()(
             }),
 
             resetLayout: () => set({
+                reportId: generateId(),
                 layout: {
                     title: 'Untitled Report',
                     pageSettings: {
@@ -313,14 +403,21 @@ export const useBuilderStore = create<BuilderState>()(
         {
             name: 'gazistat-builder-storage',
             storage: createJSONStorage(() => localStorage),
-            partialize: (state) => ({ layout: state.layout }),
-            version: 1,
-            migrate: (persistedState: any, version) => {
+            partialize: (state) => ({ layout: state.layout, reportId: state.reportId, reportOwnerId: state.reportOwnerId }),
+            version: 2,
+            migrate: (persistedState: unknown, version) => {
+                const state = typeof persistedState === 'object' && persistedState !== null
+                    ? persistedState as Record<string, unknown>
+                    : {};
+                let migratedState = state;
                 if (version === 0) {
-                    const oldLayout = persistedState.layout || persistedState;
-                    if (oldLayout && oldLayout.components && !oldLayout.pages) {
-                        return {
-                            ...persistedState,
+                    const storedLayout = state.layout;
+                    const oldLayout = typeof storedLayout === 'object' && storedLayout !== null
+                        ? storedLayout as Record<string, unknown>
+                        : state;
+                    if (Array.isArray(oldLayout.components) && !Array.isArray(oldLayout.pages)) {
+                        migratedState = {
+                            ...state,
                             layout: {
                                 ...oldLayout,
                                 pages: [
@@ -335,7 +432,11 @@ export const useBuilderStore = create<BuilderState>()(
                         };
                     }
                 }
-                return persistedState as BuilderState;
+                return {
+                    ...migratedState,
+                    reportId: typeof migratedState.reportId === 'string' ? migratedState.reportId : generateId(),
+                    reportOwnerId: typeof migratedState.reportOwnerId === 'string' ? migratedState.reportOwnerId : null,
+                } as BuilderState;
             },
         }
     )

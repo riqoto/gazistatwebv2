@@ -18,30 +18,30 @@ export function DeleteZone({ isVisible }: DeleteZoneProps) {
     return (
         <Box
             ref={setNodeRef}
-            className={`fixed bottom-0 right-0 transition-all duration-300 ${isOver ? 'scale-110' : ''
+            className={`fixed bottom-6 right-6 transition-all duration-200 ${isOver ? 'scale-105' : ''
                 }`}
             style={{
-                width: '200px',
-                height: '200px',
-                borderRadius: '100% 0 0 0',
+                width: '176px',
+                minHeight: '64px',
+                borderRadius: '12px',
                 backgroundColor: isOver ? '#ef4444' : '#f87171',
-                opacity: isOver ? 1 : 0.9,
+                opacity: isOver ? 1 : 0.96,
                 display: 'flex',
-                alignItems: 'flex-end',
-                justifyContent: 'flex-end',
-                padding: '20px',
-                boxShadow: '0 -4px 20px rgba(239, 68, 68, 0.4)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '12px 16px',
+                boxShadow: '0 8px 24px rgba(239, 68, 68, 0.24)',
                 zIndex: 50,
             }}
         >
-            <Box className="flex flex-col items-center gap-2 mb-8 mr-8">
-                <Trash2 size={32} color="white" strokeWidth={2.5} />
+            <Box className="flex items-center gap-2">
+                <Trash2 size={20} color="white" strokeWidth={2.5} />
                 <Text
                     size="2"
                     weight="bold"
                     style={{ color: 'white', textAlign: 'center' }}
                 >
-                    Drop to Delete
+                    Silmek için bırak
                 </Text>
             </Box>
         </Box>

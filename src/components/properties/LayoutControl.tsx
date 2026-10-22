@@ -1,4 +1,4 @@
-import { Box, Flex, Text, TextField, Grid } from '@radix-ui/themes';
+import { Box, Flex, Text, TextField, Grid, Select } from '@radix-ui/themes';
 import { ComponentStyles } from '@/types/schema';
 import { useCallback, useRef, useEffect } from 'react';
 
@@ -42,6 +42,21 @@ export function LayoutControl({ styles, onChange }: LayoutControlProps) {
                     />
                 </Box>
             </Grid>
+
+            <Box mt="2">
+                <Text size="1" mb="1" as="div">Hizalama</Text>
+                <Select.Root
+                    value={styles.textAlign || 'left'}
+                    onValueChange={(value) => handleChange('textAlign', value)}
+                >
+                    <Select.Trigger className="w-full" />
+                    <Select.Content>
+                        <Select.Item value="left">Sol</Select.Item>
+                        <Select.Item value="center">Merkez</Select.Item>
+                        <Select.Item value="right">Sağ</Select.Item>
+                    </Select.Content>
+                </Select.Root>
+            </Box>
         </Box>
     );
 }

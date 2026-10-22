@@ -1,7 +1,7 @@
 'use client';
 
 import { Flex, Grid, Box, Card, Text } from '@radix-ui/themes';
-import { Sidebar, SidebarItem } from './Sidebar';
+import { Sidebar } from './Sidebar';
 import { Canvas } from './Canvas';
 import { PropertiesPanel } from './PropertiesPanel';
 import { Header } from './Header';
@@ -9,22 +9,62 @@ import { DeleteZone } from './DeleteZone';
 import {
     DndContext,
     DragOverlay,
+    CollisionDetection,
     useSensor,
     useSensors,
     PointerSensor,
     DragEndEvent,
     DragStartEvent,
-    closestCenter,
+    pointerWithin,
 } from '@dnd-kit/core';
 import { useState } from 'react';
-import { ComponentType, ComponentSchema } from '@/types/schema';
+import { ComponentType, ComponentSchema, ContainerFlexComponent } from '@/types/schema';
 import { useBuilderStore } from '@/store/useBuilderStore';
-import { Type, LayoutTemplate, Square, FileText } from 'lucide-react';
+import { Type, LayoutTemplate, Square, FileText, Image as ImageIcon, Minus, MoveVertical, BarChart3, Rows, Columns, AlertCircle, Move } from 'lucide-react';
+
+const componentLabels: Record<string, string> = {
+    heading: 'Başlık',
+    text: 'Metin Bloğu',
+    'metric-card': 'Metrik Kartı',
+    image: 'Görsel',
+    divider: 'Ayırıcı',
+    spacer: 'Boşluk',
+    'data-view': 'Veri Görünümü',
+    'container-flex': 'Kapsayıcı',
+    row: 'Satır',
+    column: 'Sütun',
+    alert: 'Uyarı',
+};
+
+function findComponent(components: ComponentSchema[], id: string): ComponentSchema | undefined {
+    for (const component of components) {
+        if (component.id === id) return component;
+        if ('children' in component && Array.isArray(component.children)) {
+            const found = findComponent(component.children, id);
+            if (found) return found;
+        }
+    }
+    return undefined;
+}
+
+const pointerCollisionDetection: CollisionDetection = (args) => {
+    const collisions = pointerWithin(args).filter((collision) => collision.id !== args.active.id);
+    const deleteTarget = collisions.find((collision) => collision.id === 'delete-zone');
+    if (deleteTarget) return [deleteTarget];
+
+    const componentTargets = collisions.filter((collision) =>
+        args.droppableContainers.find((container) => container.id === collision.id)?.data.current?.type !== 'page'
+    );
+    const pageTargets = collisions.filter((collision) =>
+        args.droppableContainers.find((container) => container.id === collision.id)?.data.current?.type === 'page'
+    );
+
+    return [...componentTargets, ...pageTargets];
+};
 
 export function MainLayout() {
     const [activeSidebarItem, setActiveSidebarItem] = useState<{ type: ComponentType; label: string } | null>(null);
     const [isDraggingComponent, setIsDraggingComponent] = useState(false);
-    const addComponent = useBuilderStore((state) => state.addComponent);
     const addComponentToParent = useBuilderStore((state) => state.addComponentToParent);
     const insertComponentAt = useBuilderStore((state) => state.insertComponentAt);
     const reorderComponents = useBuilderStore((state) => state.reorderComponents);
@@ -49,7 +89,15 @@ export function MainLayout() {
             setActiveSidebarItem({ type, label });
             setIsDraggingComponent(false);
         } else {
-            // Dragging an existing component
+            const draggedComponent = layout.pages
+                .map((page) => findComponent(page.components, active.id as string))
+                .find((component) => component !== undefined);
+            if (draggedComponent) {
+                setActiveSidebarItem({
+                    type: draggedComponent.type,
+                    label: componentLabels[draggedComponent.type] ?? 'Bileşen',
+                });
+            }
             setIsDraggingComponent(true);
         }
     };
@@ -94,7 +142,7 @@ export function MainLayout() {
             let targetPageId = activePageId;
 
             let type: ComponentType = sidebarType as ComponentType;
-            let extraProps: any = {};
+            let extraProps: Partial<ContainerFlexComponent> = {};
 
             if (sidebarType === 'container-flex-row') {
                 type = 'container-flex';
@@ -103,7 +151,6 @@ export function MainLayout() {
                     gap: 10,
                     children: [],
                     styles: {
-                        width: '100%',
                         paddingTop: 10, paddingRight: 10, paddingBottom: 10, paddingLeft: 10,
                         borderStyle: 'dashed', borderWidth: 1, borderColor: '#ccc'
                     }
@@ -115,7 +162,6 @@ export function MainLayout() {
                     gap: 10,
                     children: [],
                     styles: {
-                        width: '100%',
                         paddingTop: 10, paddingRight: 10, paddingBottom: 10, paddingLeft: 10,
                         borderStyle: 'dashed', borderWidth: 1, borderColor: '#ccc'
                     }
@@ -126,7 +172,7 @@ export function MainLayout() {
             const activePage = layout.pages.find(p => p.id === activePageId) || layout.pages[0];
             const currentOrder = activePage?.components.length || 0;
 
-            const newComponent: any = {
+            const newComponent = {
                 id: `${type}-${nanoId()}`,
                 type,
                 order: currentOrder,
@@ -155,16 +201,16 @@ export function MainLayout() {
                         columns: [{ key: 'name', label: 'Name' }, { key: 'value', label: 'Value' }]
                     }
                 } : {}),
-                ...(type === 'row' ? { type: 'row', children: [], gap: 10, alignItems: 'center', justifyContent: 'flex-start', styles: { width: '100%', padding: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#e5e7eb' } } : {}),
-                ...(type === 'column' ? { type: 'column', children: [], gap: 10, alignItems: 'stretch', styles: { width: '100%', padding: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#e5e7eb' } } : {}),
+                ...(type === 'row' ? { type: 'row', children: [], gap: 10, alignItems: 'center', justifyContent: 'flex-start', styles: { paddingTop: 10, paddingRight: 10, paddingBottom: 10, paddingLeft: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#e5e7eb' } } : {}),
+                ...(type === 'column' ? { type: 'column', children: [], gap: 10, alignItems: 'stretch', styles: { paddingTop: 10, paddingRight: 10, paddingBottom: 10, paddingLeft: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#e5e7eb' } } : {}),
                 ...(type === 'alert' ? { type: 'alert', variant: 'info', title: 'Info', content: 'This is an information alert.', styles: { marginBottom: 10 } } : {}),
-            };
+            } as ComponentSchema;
 
             // If dropped over a PAGE directly
             if (over.data.current?.type === 'page') {
                 targetPageId = over.data.current.pageId;
                 // Insert at end of that page
-                insertComponentAt(newComponent as ComponentSchema, undefined, targetPageId);
+                insertComponentAt(newComponent, undefined, targetPageId);
                 return;
             }
 
@@ -183,14 +229,18 @@ export function MainLayout() {
                     );
 
                     if (isContainer) {
-                        addComponentToParent(over.id as string, newComponent as ComponentSchema);
+                        addComponentToParent(over.id as string, newComponent);
                         return;
                     }
 
                     // If not a container, insert as sibling
                     const overIndex = targetPage.components.findIndex(c => c.id === over.id);
                     if (overIndex !== -1) {
-                        insertComponentAt(newComponent as ComponentSchema, overIndex, targetPageId);
+                        const activeRect = active.rect.current.translated;
+                        const insertAfter = activeRect
+                            ? activeRect.top + activeRect.height / 2 > over.rect.top + over.rect.height / 2
+                            : false;
+                        insertComponentAt(newComponent, overIndex + (insertAfter ? 1 : 0), targetPageId);
                         return;
                     }
                 }
@@ -226,7 +276,7 @@ export function MainLayout() {
                     }
                 }
             }
-            insertComponentAt(newComponent as ComponentSchema, undefined, activePageId);
+            insertComponentAt(newComponent, undefined, activePageId);
         }
         // Case 2: Reordering existing components
         else if (active.id !== over.id) {
@@ -272,11 +322,15 @@ export function MainLayout() {
                         active.id as string,
                         activeResult.page.id,
                         overResult.page.id,
-                        newIndex
+                        newIndex + ((active.rect.current.translated && active.rect.current.translated.top + active.rect.current.translated.height / 2 > over.rect.top + over.rect.height / 2) ? 1 : 0)
                     );
                 } else {
                     // Same page reorder - no capacity check needed
-                    reorderComponents(active.id as string, over.id as string);
+                    const activeRect = active.rect.current.translated;
+                    const position = activeRect && activeRect.top + activeRect.height / 2 > over.rect.top + over.rect.height / 2
+                        ? 'after'
+                        : 'before';
+                    reorderComponents(active.id as string, over.id as string, position);
                 }
             }
         }
@@ -286,20 +340,30 @@ export function MainLayout() {
         if (!activeSidebarItem) return null;
 
         // Mimic the SidebarItem appearance
-        let icon = null;
+        let icon: React.ReactNode = <Move size={18} />;
         if (activeSidebarItem.type === 'heading') icon = <Type size={16} />;
         else if (activeSidebarItem.type === 'text') icon = <FileText size={16} />;
         else if (activeSidebarItem.type === 'metric-card') icon = <Square size={16} />;
+        else if (activeSidebarItem.type === 'image') icon = <ImageIcon size={16} />;
+        else if (activeSidebarItem.type === 'divider') icon = <Minus size={16} />;
+        else if (activeSidebarItem.type === 'spacer') icon = <MoveVertical size={16} />;
+        else if (activeSidebarItem.type === 'data-view') icon = <BarChart3 size={16} />;
+        else if (activeSidebarItem.type === 'row') icon = <Rows size={16} />;
+        else if (activeSidebarItem.type === 'column') icon = <Columns size={16} />;
+        else if (activeSidebarItem.type === 'alert') icon = <AlertCircle size={16} />;
         else if (activeSidebarItem.type === 'container-flex') icon = <LayoutTemplate size={16} />;
 
         return (
             <Card
                 variant="classic"
-                className="w-[200px] shadow-lg border-gazi-navy-500 bg-white opacity-90 cursor-grabbing"
+                className="w-[220px] border-blue-300 bg-white shadow-xl ring-2 ring-blue-100 opacity-95 cursor-grabbing"
             >
-                <Flex gap="2" align="center">
-                    <Box className="text-gazi-navy-500">{icon}</Box>
-                    <Text size="2" weight="medium">{activeSidebarItem.label}</Text>
+                <Flex gap="3" align="center">
+                    <Box className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-700">{icon}</Box>
+                    <Box>
+                        <Text size="2" weight="bold">{activeSidebarItem.label}</Text>
+                        <Text as="div" size="1" color="gray">Bırakarak ekle veya taşı</Text>
+                    </Box>
                 </Flex>
             </Card>
         );
@@ -310,7 +374,7 @@ export function MainLayout() {
             <Header />
             <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={pointerCollisionDetection}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
             >

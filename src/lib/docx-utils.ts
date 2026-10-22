@@ -6,7 +6,11 @@ import { LayoutJSON, ComponentSchema } from '@/types/schema';
 
 // --- EXPORT LOGIC ---
 
-export const exportToDocx = async (layout: LayoutJSON, filename: string) => {
+export const exportToDocx = async (
+    layout: LayoutJSON,
+    filename: string,
+    onProgress?: (completed: number, total: number, message: string) => void,
+) => {
     const docChildren: (Paragraph)[] = [];
 
     // Title
@@ -20,19 +24,20 @@ export const exportToDocx = async (layout: LayoutJSON, filename: string) => {
     );
 
     // Process Pages
-    for (const page of layout.pages) {
+    for (const [pageIndex, page] of layout.pages.entries()) {
         // Page Title
         docChildren.push(
             new Paragraph({
                 text: page.name,
                 heading: HeadingLevel.HEADING_1,
                 spacing: { before: 200, after: 100 },
-                pageBreakBefore: docChildren.length > 1, // Page break for subsequent pages
+                pageBreakBefore: pageIndex > 0,
             })
         );
 
         // Process Components recursively
         await processComponents(page.components, docChildren);
+        onProgress?.(pageIndex + 1, layout.pages.length, `Preparing page ${pageIndex + 1} of ${layout.pages.length}`);
     }
 
     const doc = new Document({
@@ -139,7 +144,20 @@ const fetchImage = async (url: string): Promise<ArrayBuffer | null> => {
 
 // --- IMPORT LOGIC ---
 
-export const importFromDocx = async (file: File): Promise<ComponentSchema[]> => {
+export interface ImportedDocxPage {
+    name: string;
+    components: ComponentSchema[];
+}
+
+export const importFromDocx = async (file: File): Promise<ImportedDocxPage[]> => {
+    const maxFileSize = 100 * 1024 * 1024;
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+        throw new Error('Choose a DOCX file.');
+    }
+    if (file.size > maxFileSize) {
+        throw new Error('DOCX files must be smaller than 100 MB.');
+    }
+
     try {
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.convertToHtml({ arrayBuffer });
@@ -150,27 +168,55 @@ export const importFromDocx = async (file: File): Promise<ComponentSchema[]> => 
             console.warn('Mammoth import warnings:', messages);
         }
 
-        return parseHtmlToComponents(html);
+        return parseHtmlToPages(html);
     } catch (error) {
         console.error("Error importing DOCX:", error);
         throw error;
     }
 };
 
-const parseHtmlToComponents = (html: string): ComponentSchema[] => {
+const parseHtmlToPages = (html: string): ImportedDocxPage[] => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
-    const components: ComponentSchema[] = [];
-
+    const pages: ImportedDocxPage[] = [];
+    let components: ComponentSchema[] = [];
+    let pageGroupSize = 0;
+    const flushPage = () => {
+        if (components.length > 0) {
+            pages.push({ name: `Imported page ${pages.length + 1}`, components });
+            components = [];
+            pageGroupSize = 0;
+        }
+    };
     const elements = Array.from(doc.body.children);
-
     elements.forEach((el) => {
+        const breakMarkers = [el, ...Array.from(el.querySelectorAll('[style], [class]'))];
+        const hasBreakBefore = breakMarkers.some((marker) => {
+            const style = marker.getAttribute('style') || '';
+            const className = marker.getAttribute('class') || '';
+            return /break-before\s*:\s*(?:page|always)|page-break-before\s*:\s*always/i.test(style) || /page-break-before/i.test(className);
+        });
+        const hasBreakAfter = breakMarkers.some((marker) => {
+            const style = marker.getAttribute('style') || '';
+            const className = marker.getAttribute('class') || '';
+            return /break-after\s*:\s*(?:page|always)|page-break-after\s*:\s*always/i.test(style) || /page-break-after/i.test(className);
+        });
+        if (hasBreakBefore) {
+            flushPage();
+        }
+        if (el.tagName === 'BR') {
+            flushPage();
+            return;
+        }
+        pageGroupSize++;
+
         if (el.tagName.match(/^H[1-6]$/)) {
             components.push({
                 id: uuidv4(),
                 type: 'heading',
                 content: el.textContent || '',
                 styles: {},
+                order: components.length,
             } as any);
         } else if (el.tagName === 'P') {
             // Check for images inside p
@@ -181,7 +227,8 @@ const parseHtmlToComponents = (html: string): ComponentSchema[] => {
                     type: 'image',
                     src: img.src, // Mammoth converts images to base64 data URIs by default
                     styles: {},
-                    alt: img.alt || 'Imported Image'
+                    alt: img.alt || 'Imported Image',
+                    order: components.length,
                 } as any);
                 // If there is text alongside image, add it as text component? 
                 // For simplicity, let's treat it as image block if it has image.
@@ -191,6 +238,7 @@ const parseHtmlToComponents = (html: string): ComponentSchema[] => {
                     type: 'text',
                     content: el.textContent || '',
                     styles: {},
+                    order: components.length,
                 } as any);
             }
         } else if (el.tagName === 'TABLE') {
@@ -203,6 +251,7 @@ const parseHtmlToComponents = (html: string): ComponentSchema[] => {
                     type: 'text',
                     content: `[Tablo Verisi]: ${text}`,
                     styles: {},
+                    order: components.length,
                 } as any);
             }
         } else if (el.tagName === 'IMG') {
@@ -211,10 +260,21 @@ const parseHtmlToComponents = (html: string): ComponentSchema[] => {
                 type: 'image',
                 src: (el as HTMLImageElement).src,
                 styles: {},
-                alt: (el as HTMLImageElement).alt || 'Imported Image'
+                alt: (el as HTMLImageElement).alt || 'Imported Image',
+                order: components.length,
             } as any);
+        }
+
+        if (hasBreakAfter) {
+            flushPage();
+        } else if (pageGroupSize >= 40) {
+            flushPage();
         }
     });
 
-    return components;
+    flushPage();
+    if (pages.length > 500) {
+        throw new Error('DOCX import supports up to 500 pages at a time.');
+    }
+    return pages;
 };

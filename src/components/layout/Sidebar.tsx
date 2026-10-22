@@ -109,8 +109,8 @@ export function Sidebar() {
                         <RadixSeparator size="4" />
 
                         <SidebarSection title="Düzen ve Boşluk">
-                            <SidebarItem type="row" label="Satır" icon={<Rows size={16} />} disabled description="Yatay düzen oluşturucu (Geliştirme aşamasında)" />
-                            <SidebarItem type="column" label="Sütun" icon={<Columns size={16} />} disabled description="Dikey düzen oluşturucu (Geliştirme aşamasında)" />
+                            <SidebarItem type="row" label="Satır" icon={<Rows size={16} />} description="Yatay düzen oluşturucu" />
+                            <SidebarItem type="column" label="Sütun" icon={<Columns size={16} />} description="Dikey düzen oluşturucu" />
                             <SidebarItem type="metric-card" label="Metrik Kartı" icon={<Square size={16} />} description="Önemli sayısal verileri vurgulayın (KPI)." />
                             <SidebarItem type="divider" label="Ayırıcı" icon={<Minus size={16} />} description="Bölümler arasına çizgi ekle." />
                             <SidebarItem type="spacer" label="Boşluk" icon={<MoveVertical size={16} />} description="Bölümler arasına dikey boşluk ekle." />
